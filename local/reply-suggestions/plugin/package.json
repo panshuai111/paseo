@@ -1,0 +1,17 @@
+{
+  "name": "paseo-local-reply-suggestions",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@getpaseo/client": "0.16.1",
+    "@getpaseo/plugin": "0.16.1",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "typescript": "^5.9.3",
+    "zod": "^4.4.3"
+  }
+}

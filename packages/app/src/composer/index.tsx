@@ -1,4 +1,9 @@
 import {
+  ComposerSuggestionBinding,
+  type SuggestionBindingHandle,
+  type ComposerSuggestion,
+} from "./suggestions/binding";
+import {
   useComposerEditingSession,
   useComposerFullscreen,
   type ComposerEditingSession,
@@ -298,6 +303,7 @@ function buildAgentStateSelector(serverId: string, agentId: string) {
     const agent = state.sessions[serverId]?.agents?.get(agentId) ?? null;
     return {
       status: agent?.status ?? null,
+      steerOnly: agent?.capabilities?.steerOnly === true,
       contextWindowMaxTokens: agent?.lastUsage?.contextWindowMaxTokens ?? null,
       contextWindowUsedTokens: agent?.lastUsage?.contextWindowUsedTokens ?? null,
       totalCostUsd: agent?.lastUsage?.totalCostUsd ?? null,
@@ -959,6 +965,7 @@ interface ComposerProps {
   blurOnSubmit?: boolean;
   textSource: ComposerTextSource;
   onChangeText: (text: string) => void;
+  onReplaceText?: (text: string) => void;
   textReplacement: TextReplacement;
   attachments: UserComposerAttachment[];
   attachmentScopeKeys?: readonly string[];
@@ -1283,6 +1290,7 @@ function ComposerContentImpl({
   blurOnSubmit = false,
   textSource,
   onChangeText,
+  onReplaceText,
   textReplacement,
   attachments,
   attachmentScopeKeys = EMPTY_ATTACHMENT_SCOPE_KEYS,
@@ -1329,6 +1337,15 @@ function ComposerContentImpl({
   const { settings: appSettings } = useAppSettings();
 
   const agentState = useSessionStore(useShallow(buildAgentStateSelector(serverId, agentId)));
+  const suggestionRevision = useSessionStore(
+    (state) =>
+      state.sessions[serverId]?.agents?.get(agentId)?.lastUserMessageAt?.toISOString() ?? null,
+  );
+  const supportsReplySuggestions = useSessionStore(
+    (state) =>
+      state.sessions[serverId]?.agents?.get(agentId)?.capabilities?.supportsReplySuggestions ===
+      true,
+  );
 
   const queuedMessagesRaw = useSessionStore((state) =>
     state.sessions[serverId]?.queuedMessages?.get(agentId),
@@ -1345,7 +1362,13 @@ function ComposerContentImpl({
   const isDesktopWebBreakpoint = resolveIsDesktopWebBreakpoint(isCompactFormFactor);
   const { finePointer: hasFinePointer } = usePointerCapabilities();
   const isDesktopLayout = resolveIsDesktopWebBreakpoint(isCompactLayout);
-  const messagePlaceholder = resolveMessagePlaceholder(inputMode, isDesktopLayout, t, placeholder);
+  const steerOnly = agentState.steerOnly;
+  const messagePlaceholder = resolveMessagePlaceholder(
+    inputMode,
+    isDesktopLayout,
+    t,
+    steerOnly ? t("composer.placeholders.steerOnly") : placeholder,
+  );
   const setUserInput = onChangeText;
   const workspaceAttachments = useWorkspaceAttachmentsForScopes(attachmentScopeKeys);
   const {
@@ -1402,6 +1425,8 @@ function ComposerContentImpl({
   );
   useEffect(() => () => cursorPublication.cancel(), [cursorPublication]);
   const autocompleteRef = useRef<ComposerAutocompleteHandle>(null);
+  const suggestionRef = useRef<SuggestionBindingHandle>(null);
+  const [suggestion, setSuggestion] = useState<ComposerSuggestion | null>(null);
   const recall = useMemo(() => new ComposerRecall(), []);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<PendingFileAttachment[]>([]);
@@ -1535,6 +1560,15 @@ function ComposerContentImpl({
     ],
   );
 
+  const acceptSuggestion = useCallback(
+    (text: string) => {
+      if (onReplaceText) onReplaceText(text);
+      else replaceUserInput(text);
+      messageInputRef.current?.focus();
+    },
+    [onReplaceText, replaceUserInput],
+  );
+
   const runClientSlashCommand = useCallback(
     (command: ClientSlashCommand): boolean => {
       if (command.execution !== "immediate" || !onClientSlashCommand) {
@@ -1666,10 +1700,10 @@ function ComposerContentImpl({
         agentIdRef.current,
         text,
         submitAttachments,
-        appSettings.sendBehavior === "steer" ? "steer" : "interrupt",
+        steerOnly || appSettings.sendBehavior === "steer" ? "steer" : "interrupt",
       );
     },
-    [appSettings.sendBehavior, cwd, onMessageSent, t],
+    [appSettings.sendBehavior, cwd, onMessageSent, steerOnly, t],
   );
 
   useEffect(() => {
@@ -1686,6 +1720,14 @@ function ComposerContentImpl({
       if (!client) {
         throw new Error(t("workspace.terminal.hostDisconnected"));
       }
+      const activeTurnId =
+        activeTurnBehavior === "steer"
+          ? (selectAgentTurnPresentation(
+              useSessionStore.getState().sessions[serverId],
+              targetAgentId,
+            ).turnId ?? undefined)
+          : undefined;
+      if (steerOnly && !activeTurnId) throw new Error(t("composer.errors.noTurnToSteer"));
       await dispatchComposerAgentMessage({
         client,
         agentId: targetAgentId,
@@ -1697,17 +1739,12 @@ function ComposerContentImpl({
         encodeImages,
         submission: createMessageSubmissionWriter(serverId),
         activeTurnBehavior,
-        activeTurnId:
-          activeTurnBehavior === "steer"
-            ? (selectAgentTurnPresentation(
-                useSessionStore.getState().sessions[serverId],
-                targetAgentId,
-              ).turnId ?? undefined)
-            : undefined,
+        activeTurnId,
+        ...(steerOnly ? { expectedTurnId: activeTurnId } : {}),
       });
       onAttentionPromptSend?.();
     };
-  }, [appSettings.sendBehavior, client, onAttentionPromptSend, serverId, supportsForgeSearch, t]);
+  }, [client, onAttentionPromptSend, serverId, steerOnly, supportsForgeSearch, t]);
 
   useEffect(() => {
     onSubmitMessageRef.current = onSubmitMessage;
@@ -1731,7 +1768,7 @@ function ComposerContentImpl({
     return false;
   });
   const activeSendBehavior = resolveActiveSendBehavior(
-    appSettings.sendBehavior,
+    steerOnly ? "steer" : appSettings.sendBehavior,
     hasPendingPermission,
   );
   const hasAgent = agentState.status !== null;
@@ -1780,7 +1817,7 @@ function ComposerContentImpl({
         attachments: outgoingAttachments,
         hasExternalContent,
         allowEmptySubmit,
-        forceSend,
+        forceSend: steerOnly || forceSend,
         submitBehavior,
         isAgentRunning,
         // Parent-managed submits are still valid submit paths even when the
@@ -1822,6 +1859,7 @@ function ComposerContentImpl({
       queueMessage,
       setSelectedAttachments,
       replaceUserInput,
+      steerOnly,
       submitBehavior,
       submitMessage,
       t,
@@ -2113,6 +2151,7 @@ function ComposerContentImpl({
   const handleCommandKeyPress = useCallback(
     (event: ComposerKeyPressEvent) => {
       if (autocompleteRef.current?.onKeyPress(event)) return true;
+      if (suggestionRef.current?.onKeyPress(event)) return true;
       const recalledText = recall.handleKeyPress(event, () =>
         selectAgentSentMessages(useSessionStore.getState().sessions[serverId], agentId),
       );
@@ -2581,6 +2620,32 @@ function ComposerContentImpl({
                 onResolvingChange={setIsForgeResolving}
               />
 
+              <ComposerSuggestionBinding
+                ref={suggestionRef}
+                serverId={serverId}
+                agentId={agentId}
+                revision={suggestionRevision}
+                enabled={
+                  inputMode === "chat" &&
+                  !readOnly &&
+                  !isSubmitLoading &&
+                  !isProcessing &&
+                  isConnected &&
+                  agentState.status === "idle" &&
+                  supportsReplySuggestions &&
+                  !isAgentRunning &&
+                  !isFullscreen
+                }
+                hasAttachments={
+                  selectedAttachments.length > 0 ||
+                  hasExternalContent ||
+                  isUploadingFile ||
+                  pendingNativeImagePastes > 0
+                }
+                text={textSource}
+                onChange={setSuggestion}
+                onAccept={acceptSuggestion}
+              />
               {/* MessageInput handles everything: text, dictation, attachments, all buttons */}
               <RenderProfile id="MessageInput">
                 <StableMessageInput
@@ -2606,7 +2671,11 @@ function ComposerContentImpl({
                   onPasteImages={handleNativePasteImages}
                   client={client}
                   isReadyForDictation={isDictationReady}
-                  placeholder={messagePlaceholder}
+                  placeholder={
+                    suggestion?.revision === suggestionRevision
+                      ? suggestion.text
+                      : messagePlaceholder
+                  }
                   autoFocus={messageInputAutoFocus}
                   autoFocusKey={`${serverId}:${agentId}:${autoFocusKey ?? ""}`}
                   disabled={isSubmitLoading}
@@ -2619,7 +2688,7 @@ function ComposerContentImpl({
                   isAgentRunning={isAgentRunning}
                   defaultSendBehavior={activeSendBehavior}
                   sendShortcut={appSettings.sendShortcut}
-                  onQueue={handleQueue}
+                  onQueue={steerOnly ? undefined : handleQueue}
                   onSubmitLoadingPress={submitLoadingPressHandler}
                   onKeyPress={handleCommandKeyPress}
                   onSelectionChange={handleSelectionChange}

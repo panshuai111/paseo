@@ -42,6 +42,12 @@ the agent runs through `ensureAgentLoaded()`, which resumes the durable provider
 same Paseo agent ID. Provider history is not appended again when the canonical timeline is already
 primed.
 
+Provider-subagent list queries must not acquire a provider runtime. Reconnects issue these reads
+automatically, so loading a closed parent here can restart many idle providers at once. Persist child
+descriptor summaries with the parent so lists remain readable after daemon restart. A legacy parent
+without a summary reports history unavailable until its conversation is explicitly opened; do not
+turn missing history into an authoritative empty list.
+
 Reload releases the old runtime before resuming its durable session: an idle provider process can
 still own an exclusive writer. A close failure retains that runtime for cleanup and blocks the
 replacement. Once closure succeeds, a failed resume leaves the durable agent closed and retryable.

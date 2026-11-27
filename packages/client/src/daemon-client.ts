@@ -479,6 +479,7 @@ export interface DaemonClientTrace {
 }
 
 export interface SendMessageOptions {
+  expectedTurnId?: string;
   sourceAgentId?: string;
   sourceAgentServerId?: string;
   sessionMode?: string;
@@ -1023,6 +1024,7 @@ interface WaitHandle<T> {
 interface WaitOptions {
   skipQueue?: boolean;
   requestId?: string;
+  requestType?: SessionInboundMessage["type"];
 }
 
 interface CorrelatedResponseIdentity {
@@ -2359,7 +2361,7 @@ export class DaemonClient {
         return { kind: "ok", value };
       },
       timeout,
-      { ...params.options, requestId: params.requestId },
+      { ...params.options, requestId: params.requestId, requestType: params.message.type },
     );
 
     // The response deadline still applies while the transport waits for drain.
@@ -4198,6 +4200,60 @@ export class DaemonClient {
     );
   }
 
+  async suggestReply(
+    agentId: string,
+    options: import("@getpaseo/protocol/reply-suggestions").ReplySuggestionOptions,
+  ): Promise<string | null> {
+    if (!this.getLastServerInfoMessage()?.features?.replySuggestions) {
+      throw new Error("Update this host to a Paseo build with reply suggestions.");
+    }
+    const requestId = this.createRequestId();
+    if (options.signal?.aborted) return null;
+    const cancel = () => {
+      const cancelId = this.createRequestId();
+      this.sendRequest({
+        requestId: cancelId,
+        message: {
+          type: "agent.codex.reply_suggestion.cancel.request",
+          requestId: cancelId,
+          predictionRequestId: requestId,
+        },
+        timeout: 5000,
+        options: { skipQueue: true },
+        select: (msg) =>
+          msg.type === "agent.codex.reply_suggestion.cancel.response" &&
+          msg.payload.requestId === cancelId
+            ? msg.payload
+            : null,
+      }).catch(() => undefined);
+    };
+    const pending = this.sendRequest({
+      requestId,
+      message: {
+        type: "agent.codex.reply_suggestion.request",
+        requestId,
+        agentId,
+        revision: options.revision,
+        prompt: options.prompt,
+      },
+      timeout: 35000,
+      options: { skipQueue: true },
+      select: (msg) =>
+        msg.type === "agent.codex.reply_suggestion.response" && msg.payload.requestId === requestId
+          ? msg.payload
+          : null,
+    });
+    options.signal?.addEventListener("abort", cancel, { once: true });
+    try {
+      const result = await pending;
+      if (options.signal?.aborted) return null;
+      if (result.error) throw new Error(result.error);
+      return result.text;
+    } finally {
+      options.signal?.removeEventListener("abort", cancel);
+    }
+  }
+
   async buildAgentForkContext(
     agentId: string,
     options: AgentForkContextOptions = {},
@@ -4267,6 +4323,7 @@ export class DaemonClient {
       sessionMode: options.sessionMode,
       ...(messageId ? { messageId } : {}),
       activeTurnBehavior: options.activeTurnBehavior,
+      ...(options.expectedTurnId ? { expectedTurnId: options.expectedTurnId } : {}),
       images: options.images,
       attachments: options.attachments,
     });
@@ -8107,7 +8164,9 @@ export class DaemonClient {
   ): WaitHandle<T> {
     // Capture stack trace at call site, not inside setTimeout
     const timeoutError = new DaemonConnectionError(
-      `Timeout waiting for message (${timeout}ms)`,
+      options?.requestType
+        ? `No response to ${options.requestType} after ${timeout}ms`
+        : `Timeout waiting for message (${timeout}ms)`,
       "DAEMON_REQUEST_TIMEOUT",
     );
 

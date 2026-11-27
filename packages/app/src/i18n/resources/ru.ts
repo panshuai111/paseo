@@ -132,6 +132,7 @@ export const ru: TranslationResources = {
   },
   composer: {
     placeholders: {
+      steerOnly: "Добавьте указания для текущей задачи",
       desktop: "Напишите агенту сообщение, отметьте @files или используйте /commands и /skills.",
       mobile: "Сообщение,@files,/commands",
       fallback: "Сообщение...",
@@ -193,6 +194,7 @@ export const ru: TranslationResources = {
       removeReview: "Удалить вложение проверки",
     },
     errors: {
+      noTurnToSteer: "Сейчас нет выполняемой задачи, которой можно дать указания.",
       failedToSend: "Не удалось отправить сообщение",
       failedToCreateAgent: "Не удалось создать агента.",
       noHostSelected: "Хост не выбран",

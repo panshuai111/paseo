@@ -2215,6 +2215,36 @@ describe("Codex app-server provider", () => {
     appServer.assertNoErrors();
   });
 
+  test("lets idle cleanup release a session opened only to read its history", async () => {
+    let spawns = 0;
+    const appServer = createFakeCodexAppServer({
+      "thread/resume": () =>
+        Promise.reject(new Error(archivedThreadErrorMessage("archived-thread-id"))),
+      "thread/read": () => ({ thread: { turns: [] } }),
+    });
+    const provider = new CodexAppServerAgentClient(createTestLogger(), undefined, {
+      appServerProcess: createFakeCodexAppServerProcess(() => {
+        spawns += 1;
+        return appServer.child;
+      }),
+    });
+    const internals = castInternals<{
+      goalsEnabledPromise: Promise<boolean> | null;
+      autoReviewEnabledPromise: Promise<boolean> | null;
+    }>(provider);
+    internals.goalsEnabledPromise = Promise.resolve(false);
+    internals.autoReviewEnabledPromise = Promise.resolve(false);
+
+    const session = await provider.resumeSession(archivedThreadHandle(), undefined, undefined, {
+      purpose: "history",
+    });
+
+    expect(await session.canStopRuntime!()).toBe(true);
+    expect(spawns).toBe(1);
+    await session.close();
+    appServer.assertNoErrors();
+  });
+
   test("unarchives Codex when an active Paseo agent resumes an archived thread", async () => {
     const threadRequests: string[] = [];
     let resumeAttempts = 0;
@@ -8622,5 +8652,53 @@ describe("legacy empty additions", () => {
       "diff --git a/empty.txt b/empty.txt\n--- /dev/null\n+++ b/empty.txt",
     );
     expect(item.detail.unifiedDiff).toContain("diff --git a/second.txt b/second.txt");
+  });
+});
+
+describe("reply suggestion isolation", () => {
+  test("keeps prediction output and permissions out of the original conversation", async () => {
+    const appServer = createFakeCodexAppServer({
+      "thread/unsubscribe": () => ({ status: "unsubscribed" }),
+      "thread/delete": () => ({}),
+      "turn/start": (params) =>
+        (params as { threadId?: string }).threadId === "forked-thread"
+          ? { turn: { id: "fork-turn" } }
+          : {},
+    });
+    const provider = createProviderWithFakeAppServer(appServer);
+    const session = await provider.createSession(createConfig());
+    const events: AgentStreamEvent[] = [];
+    session.subscribe((event) => events.push(event));
+    try {
+      const original = session.run("Explain Git branches");
+      await appServer.waitForTurnStart();
+      appServer.says({ threadId: "thread-1", text: "A branch is a separate line of work." });
+      appServer.completeTurn();
+      await original;
+      const eventCount = events.length;
+      const originalPersistence = session.describePersistence();
+      if (!session.suggestReply) throw new Error("Missing Codex suggestion capability");
+      const prediction = session.suggestReply({
+        prompt: "Predict a follow-up",
+        signal: new AbortController().signal,
+      });
+      await appServer.waitForRequest("thread/fork");
+      await appServer.waitForTurnStart();
+      appServer.says({
+        threadId: "forked-thread",
+        text: '{"suggestion":"Can you show an example?"}',
+      });
+      appServer.completeTurn({ threadId: "forked-thread" });
+      await expect(prediction).resolves.toBe("Can you show an example?");
+      expect(session.id).toBe("thread-1");
+      expect(session.describePersistence()).toEqual(originalPersistence);
+      expect(events.slice(eventCount)).toEqual([]);
+      expect(session.getPendingPermissions()).toEqual([]);
+      expect(
+        appServer.requests().filter((request) => request.method === "thread/unsubscribe"),
+      ).toEqual([expect.objectContaining({ params: { threadId: "forked-thread" } })]);
+    } finally {
+      await session.close();
+    }
   });
 });

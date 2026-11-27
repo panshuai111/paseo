@@ -1,4 +1,5 @@
 import { DiffSession } from "./diff/index.js";
+import { ReplySuggestionRequests } from "./agent/reply-suggestions/requests.js";
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import type { AgentMessageDelivery } from "./agent/agent-messages/index.js";
 import { AgentDirectory, type BackgroundVisibility } from "./agent/directory.js";
@@ -2384,7 +2385,33 @@ export class Session {
     return this.delivery.request(source, msg, () => this.handleRequest(msg, source));
   }
 
+  private readonly replySuggestionRequests = new ReplySuggestionRequests();
+
   private async handleRequest(msg: SessionInboundMessage, source?: object): Promise<void> {
+    if (msg.type === "agent.codex.reply_suggestion.cancel.request") {
+      this.replySuggestionRequests.cancel(msg.predictionRequestId);
+      this.emitForSource(
+        {
+          type: "agent.codex.reply_suggestion.cancel.response",
+          payload: { requestId: msg.requestId },
+        },
+        source,
+      );
+      return;
+    }
+    if (msg.type === "agent.codex.reply_suggestion.request") {
+      return this.replySuggestionRequests.request({
+        message: msg,
+        load: () =>
+          ensureUnarchivedAgentLoaded(msg.agentId, {
+            agentManager: this.agentManager,
+            agentStorage: this.agentStorage,
+            logger: this.sessionLogger,
+          }),
+        current: () => this.agentManager.getAgent(msg.agentId),
+        emit: (response) => this.emitForSource(response, source),
+      });
+    }
     this.inflightRequests++;
     if (this.inflightRequests > this.peakInflightRequests) {
       this.peakInflightRequests = this.inflightRequests;
@@ -8653,17 +8680,13 @@ export class Session {
     msg: Extract<SessionInboundMessage, { type: "agent.provider_subagents.list.request" }>,
   ): Promise<void> {
     try {
-      await ensureUnarchivedAgentLoaded(msg.parentAgentId, {
-        agentManager: this.agentManager,
-        agentStorage: this.agentStorage,
-        logger: this.sessionLogger,
-      });
+      const subagents = await this.agentManager.readProviderSubagents(msg.parentAgentId);
       this.emit({
         type: "agent.provider_subagents.list.response",
         payload: {
           requestId: msg.requestId,
           parentAgentId: msg.parentAgentId,
-          subagents: this.agentManager.listProviderSubagents(msg.parentAgentId),
+          subagents,
           error: null,
         },
       });
@@ -8984,6 +9007,7 @@ export class Session {
           prompt,
           messageId: msg.messageId,
           activeTurnBehavior: msg.activeTurnBehavior ?? "interrupt",
+          expectedTurnId: msg.expectedTurnId,
           sessionMode: msg.sessionMode,
           clearPendingPermissions: true,
           beforeDispatch,
@@ -9006,6 +9030,7 @@ export class Session {
               sourceAgentId: msg.sourceAgentId,
               sourceAgentServerId: msg.sourceAgentServerId,
               sessionMode: msg.sessionMode,
+              expectedTurnId: msg.expectedTurnId,
               activeTurnBehavior:
                 msg.activeTurnBehavior ?? (msg.sourceAgentId ? "steer" : "interrupt"),
             },
@@ -9379,6 +9404,7 @@ export class Session {
    * Clean up session resources
    */
   public async cleanup(): Promise<void> {
+    this.replySuggestionRequests.dispose();
     this.sessionLogger.trace({}, "agent.session.lifecycle.cleanup");
     this.isCleanedUp = true;
     this.unsubscribeSetupObservation();

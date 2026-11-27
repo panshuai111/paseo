@@ -14,7 +14,7 @@ import { join } from "node:path";
 
 import { createTestLogger } from "../../test-utils/test-logger.js";
 import { AgentManager } from "./agent-manager.js";
-import { waitForAgentRunStartWithTimeout } from "./agent-prompt.js";
+import { startAgentRun, waitForAgentRunStartWithTimeout } from "./agent-prompt.js";
 import type {
   AgentClient,
   AgentRunResult,
@@ -374,4 +374,37 @@ test("schedule trigger identity survives the provider assigning a message ID", (
   expect(projectAgentMessages({ type: "user_message", text })).toEqual(
     projectAgentMessages({ type: "user_message", text, messageId: "provider-message" }),
   );
+});
+
+test("a steer-only provider never starts or replaces a turn from an ordinary send", async () => {
+  const steerAgentRun = vi
+    .fn<AgentManager["steerAgentRun"]>()
+    .mockResolvedValueOnce({ status: "accepted" })
+    .mockResolvedValueOnce({ status: "unavailable" });
+  const agentManager = {
+    getAgent: vi.fn().mockReturnValue({ capabilities: { steerOnly: true } }),
+    tryRunOutOfBand: vi.fn().mockResolvedValue(false),
+    reloadStalePluginSession: vi.fn().mockResolvedValue(undefined),
+    reloadAgentSession: vi.fn(),
+    hasInFlightRun: vi.fn().mockReturnValue(true),
+    replaceAgentRun: vi.fn(),
+    steerOrReplaceActiveTurn: vi.fn(),
+    streamAgent: vi.fn(),
+    steerAgentRun,
+  };
+  const options = {
+    activeTurnBehavior: "interrupt" as const,
+    expectedTurnId: "turn-1",
+    replaceRunning: true,
+  };
+  await expect(
+    startAgentRun(agentManager, "one", "guide", createTestLogger(), options),
+  ).resolves.toEqual({ disposition: "steered" });
+  await expect(
+    startAgentRun(agentManager, "one", "stale", createTestLogger(), options),
+  ).rejects.toThrow("当前任务已结束或已切换");
+  expect(steerAgentRun).toHaveBeenLastCalledWith("one", "stale", undefined, "turn-1");
+  expect(agentManager.replaceAgentRun).not.toHaveBeenCalled();
+  expect(agentManager.steerOrReplaceActiveTurn).not.toHaveBeenCalled();
+  expect(agentManager.streamAgent).not.toHaveBeenCalled();
 });

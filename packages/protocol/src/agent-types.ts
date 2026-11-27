@@ -187,6 +187,9 @@ export interface AgentCapabilityFlags {
   supportsRewindConversation?: boolean;
   supportsRewindFiles?: boolean;
   supportsRewindBoth?: boolean;
+  /** Prompts are accepted only as guidance for an already running turn. */
+  steerOnly?: boolean;
+  supportsReplySuggestions?: boolean;
 }
 
 export interface AgentPersistenceHandle {

@@ -7,10 +7,13 @@ let cachedRunningUnderARM64Translation: boolean | null = null;
 
 export function detectRunningUnderARM64Translation(input: {
   platform: NodeJS.Platform;
+  arch: NodeJS.Architecture;
   electronReportedTranslation?: boolean;
   execFileSyncImpl?: typeof execFileSync;
 }): boolean {
-  if (input.platform !== "darwin") {
+  // A native arm64 process cannot be running through Rosetta, regardless of
+  // what Electron or sysctl reports for a child process.
+  if (input.platform !== "darwin" || input.arch !== "x64") {
     return false;
   }
 
@@ -38,6 +41,7 @@ export function isRunningUnderARM64Translation(): boolean {
 
   cachedRunningUnderARM64Translation = detectRunningUnderARM64Translation({
     platform: process.platform,
+    arch: process.arch,
     electronReportedTranslation: app.runningUnderARM64Translation,
   });
   return cachedRunningUnderARM64Translation;

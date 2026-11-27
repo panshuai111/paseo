@@ -131,6 +131,7 @@ export const ko: TranslationResources = {
   },
   composer: {
     placeholders: {
+      steerOnly: "실행 중인 작업에 지침 추가",
       desktop: "에이전트에게 메시지를 보내거나 @files 태그, /commands, /skills를 사용하세요",
       mobile: "메시지, @files, /commands",
       fallback: "메시지...",
@@ -192,6 +193,7 @@ export const ko: TranslationResources = {
       removeReview: "리뷰 첨부 제거",
     },
     errors: {
+      noTurnToSteer: "지침을 보낼 실행 중인 작업이 없습니다.",
       failedToSend: "메시지를 보내지 못했습니다",
       failedToCreateAgent: "에이전트를 생성하지 못했습니다",
       noHostSelected: "선택된 호스트가 없습니다",

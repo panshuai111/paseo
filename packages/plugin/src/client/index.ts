@@ -135,3 +135,8 @@ export type { WorkspaceRef, AgentRef, ProjectRef, TerminalRef } from "../refs.js
 export type { Query, Group, GroupKey } from "./query.js";
 
 export type { PluginPaseoApi, PluginProjectHandle, PluginTerminalHandle } from "./reference-api.js";
+export type {
+  PluginComposerSuggestionRequest,
+  PluginComposerSuggestionProvider,
+  RegisterComposerSuggestionProvider,
+} from "./suggestions.js";

@@ -52,6 +52,7 @@ export interface ComposerSendClient {
     options: {
       messageId: string;
       activeTurnBehavior?: ActiveTurnBehavior;
+      expectedTurnId?: string;
       images: Array<{ data: string; mimeType: string }>;
       attachments: ReturnType<typeof splitComposerAttachmentsForSubmit>["attachments"];
     },
@@ -197,6 +198,7 @@ export interface DispatchComposerAgentMessageInput {
   submission: MessageSubmissionWriter;
   activeTurnBehavior?: ActiveTurnBehavior;
   activeTurnId?: string;
+  expectedTurnId?: string;
 }
 
 export async function dispatchComposerAgentMessage(
@@ -222,6 +224,7 @@ export async function dispatchComposerAgentMessage(
     await input.client.sendAgentMessage(input.agentId, input.text, {
       messageId: clientMessageId,
       ...(input.activeTurnBehavior ? { activeTurnBehavior: input.activeTurnBehavior } : {}),
+      ...(input.expectedTurnId ? { expectedTurnId: input.expectedTurnId } : {}),
       images: imagesData ?? [],
       attachments: wirePayload.attachments,
     });

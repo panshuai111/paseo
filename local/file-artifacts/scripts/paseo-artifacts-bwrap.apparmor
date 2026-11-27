@@ -1,0 +1,7 @@
+# Ubuntu 24.04 restricts capabilities in unnamed user namespaces.
+# Scope the exception to the root-owned preview sandbox executable.
+abi <abi/4.0>,
+include <tunables/global>
+profile paseo-artifacts-bwrap /usr/local/libexec/paseo-artifacts-bwrap flags=(unconfined) {
+  userns,
+}

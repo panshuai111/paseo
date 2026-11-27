@@ -133,6 +133,7 @@ export const fr: TranslationResources = {
   },
   composer: {
     placeholders: {
+      steerOnly: "Guider la tâche en cours",
       desktop: "Écrivez à l’agent, mentionnez des @fichiers ou utilisez les /commandes et /skills",
       mobile: "Message, @fichiers, /commandes",
       fallback: "Message…",
@@ -194,6 +195,7 @@ export const fr: TranslationResources = {
       removeReview: "Retirer la revue jointe",
     },
     errors: {
+      noTurnToSteer: "Aucune tâche en cours à guider.",
       failedToSend: "Impossible d’envoyer le message",
       failedToCreateAgent: "Impossible de créer l’agent",
       noHostSelected: "Aucun hôte sélectionné",

@@ -2,6 +2,7 @@ import type { ProviderOptions } from "@getpaseo/protocol/agent-types";
 import { applyProviderOptionsPatch } from "../option-controls.js";
 import { assertChangesAreLive, validateProviderOptions } from "../provider-options.js";
 import { CodexBackgroundInventory } from "./codex/background-inventory.js";
+import { CodexReplySuggestions } from "../reply-suggestions/codex.js";
 import {
   getAgentStreamEventTurnId,
   type AgentPermissionAction,
@@ -260,6 +261,7 @@ function formatOutOfBandStatusMessage(text: string): string {
 }
 
 const CODEX_APP_SERVER_CAPABILITIES: AgentCapabilityFlags = {
+  supportsReplySuggestions: true,
   supportsStreaming: true,
   supportsSessionPersistence: true,
   supportsSessionListing: true,
@@ -3618,6 +3620,7 @@ export class CodexAppServerAgentSession implements AgentSession {
     resolve: () => void;
     cancelRequested: boolean;
   } | null = null;
+  private readonly replySuggestions = new CodexReplySuggestions();
   private client: CodexAppServerClient | null = null;
   private readonly background = new CodexBackgroundInventory((event) => this.emitEvent(event));
   private threadRollbackAvailable = true;
@@ -4175,20 +4178,30 @@ export class CodexAppServerAgentSession implements AgentSession {
     if (!this.client) return;
 
     this.client.setRequestHandler("item/commandExecution/requestApproval", (params) =>
-      this.handleCommandApprovalRequest(params),
+      this.replySuggestions.interactiveRequest(params, () =>
+        this.handleCommandApprovalRequest(params),
+      ),
     );
     this.client.setRequestHandler("item/fileChange/requestApproval", (params) =>
-      this.handleFileChangeApprovalRequest(params),
+      this.replySuggestions.interactiveRequest(params, () =>
+        this.handleFileChangeApprovalRequest(params),
+      ),
     );
     this.client.setRequestHandler("item/tool/requestUserInput", (params) =>
-      this.handleToolApprovalRequest(params),
+      this.replySuggestions.interactiveRequest(params, () =>
+        this.handleToolApprovalRequest(params),
+      ),
     );
     this.client.setRequestHandler("mcpServer/elicitation/request", (params, requestId) =>
-      this.handleMcpElicitationRequest(params, requestId),
+      this.replySuggestions.interactiveRequest(params, () =>
+        this.handleMcpElicitationRequest(params, requestId),
+      ),
     );
     // Keep the legacy method name for older Codex builds.
     this.client.setRequestHandler("tool/requestUserInput", (params) =>
-      this.handleToolApprovalRequest(params),
+      this.replySuggestions.interactiveRequest(params, () =>
+        this.handleToolApprovalRequest(params),
+      ),
     );
   }
 
@@ -4597,6 +4610,7 @@ export class CodexAppServerAgentSession implements AgentSession {
     prompt: AgentPromptInput,
     options?: AgentRunOptions,
   ): Promise<{ turnId: string }> {
+    this.replySuggestions.close();
     if (this.activeForegroundTurnId || this.pendingForegroundStart) {
       throw new Error("A foreground turn is already active");
     }
@@ -5340,9 +5354,38 @@ export class CodexAppServerAgentSession implements AgentSession {
     return this.background.stopItem(id);
   }
 
+  async suggestReply(input: { prompt: string; signal: AbortSignal }): Promise<string | null> {
+    if (
+      this.closed ||
+      this.activeForegroundTurnId ||
+      this.currentTurnId ||
+      this.pendingForegroundStart
+    )
+      return null;
+    await this.ensureThreadLoaded();
+    if (
+      this.closed ||
+      this.activeForegroundTurnId ||
+      this.currentTurnId ||
+      this.pendingForegroundStart ||
+      input.signal.aborted
+    )
+      return null;
+    if (!this.client || !this.currentThreadId) throw new Error("Codex is not connected");
+    return this.replySuggestions.generate({
+      ...input,
+      client: this.client,
+      threadId: this.currentThreadId,
+      onFork: (threadId) => this.pendingSubAgentNotificationsByThreadId.delete(threadId),
+    });
+  }
+
   async canStopRuntime(): Promise<boolean> {
+    // A history session released its app-server once it read the thread, so nothing runs.
+    if (this.connectionState === "history-ready") return true;
     if (
       !this.client ||
+      this.replySuggestions.busy ||
       this.client.hasPendingRequests() ||
       !this.currentThreadId ||
       this.activeForegroundTurnId ||
@@ -5500,6 +5543,7 @@ export class CodexAppServerAgentSession implements AgentSession {
   }
 
   async close(): Promise<void> {
+    this.replySuggestions.close();
     this.closed = true;
     this.startupAbort.abort(this.createClosedError());
     this.background.stop();
@@ -5902,6 +5946,7 @@ export class CodexAppServerAgentSession implements AgentSession {
   }
 
   private async processNotification(method: string, params: unknown): Promise<void> {
+    if (this.replySuggestions.notification(method, params)) return;
     const notificationParams = toObjectRecord(params);
     if (method === "serverRequest/resolved" && typeof notificationParams?.requestId === "number") {
       const requestId = this.mcpElicitationPermissionIds.get(notificationParams.requestId);

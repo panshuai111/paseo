@@ -2225,6 +2225,38 @@ describe("PluginAgentClientRegistry", () => {
     }
   });
 
+  test("binds steer-only prompts to the provider turn and reports a refusal", async () => {
+    const harness = createProviderHarness({
+      capabilities: [...CAPABILITIES, "prompt.steer", "prompt.steer_only"],
+      handleInput: async (input, emit) => {
+        if (input.type !== "session.prompt") return false;
+        emit({
+          type: "session.prompt_result",
+          sessionId: input.sessionId,
+          clientMessageId: input.prompt.clientMessageId,
+          result: { type: "failed", error: { message: "Hermes refused the guide" } },
+        });
+        return true;
+      },
+    });
+    const registry = new PluginAgentClientRegistry(createTestLogger());
+    registry.replace([harness.registration]);
+    const client = registry.clients()[harness.registration.id]!;
+    const session = await client.createSession({ provider: harness.registration.id, cwd: "/tmp" });
+    try {
+      expect(session.capabilities.steerOnly).toBe(true);
+      await expect(session.steerActiveTurn!("guide", { expectedTurnId: "turn-1" })).rejects.toThrow(
+        "Hermes refused the guide",
+      );
+      expect(harness.inputs.find((input) => input.type === "session.prompt")).toMatchObject({
+        prompt: { expectedTurnId: "turn-1", delivery: "steer" },
+      });
+    } finally {
+      await session.close();
+      registry.replace([]);
+    }
+  });
+
   test("returns unavailable when steering a provider without prompt.steer capability", async () => {
     const harness = createProviderHarness({
       capabilities: [

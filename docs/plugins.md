@@ -533,6 +533,10 @@ need no change. See [catalogue ownership](providers.md#provider-snapshot-refresh
 `send()` resolves after acceptance. Publish operation completion, prompt disposition, turn state,
 configuration, permissions, persistence, and complete timeline snapshots through `onEvent()`.
 Route messages, structured commands, steering, and command side effects through `session.prompt`.
+A provider that observes an external execution can negotiate `prompt.steer_only` alongside
+`prompt.message` and `prompt.steer`. Paseo forwards the expected turn ID on a steer and refuses
+to start or replace a run when that turn is unavailable. Use this for a session whose original
+execution or reply destination the provider must preserve.
 A provider's configuration is the opaque `ProviderSessionConfig.providerOptions` object on
 `session.open`. It contains the provider defaults and per-agent overrides merged by the daemon.
 Validate and apply it inside the provider; core does not know your option shape.

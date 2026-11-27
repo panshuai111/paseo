@@ -28,9 +28,10 @@ interface ProviderSubagentState {
   descriptors: Map<string, ProviderSubagentDescriptorPayload>;
   timelines: Map<string, ProviderSubagentTimelineState>;
   hiddenFromTrack: Set<string>;
-  /** Parents whose list this client asked for, so a resubscribed update feed can catch them up. */
-  trackedParents: Set<string>;
+  /** Reference-counted mounted consumers; past visits must not become permanent reconnect work. */
+  trackedParents: Map<string, number>;
   trackParent(serverId: string, parentAgentId: string): void;
+  untrackParent(serverId: string, parentAgentId: string): void;
   hideFromTrack(serverId: string, parentAgentId: string, subagentIds: readonly string[]): void;
   replaceList(
     serverId: string,
@@ -72,6 +73,57 @@ export function providerSubagentLifecycleStatus(
 type ProviderSubagentListClient = Pick<DaemonClient, "listProviderSubagents">;
 
 const pendingListRequests = new WeakMap<ProviderSubagentListClient, Map<string, Promise<void>>>();
+const listQueues = new WeakMap<
+  ProviderSubagentListClient,
+  { active: number; pending: Array<() => void> }
+>();
+const LIST_CONCURRENCY = 4;
+
+function scheduleList(
+  client: ProviderSubagentListClient,
+  request: () => Promise<void>,
+): Promise<void> {
+  let queue = listQueues.get(client);
+  if (!queue) {
+    queue = { active: 0, pending: [] };
+    listQueues.set(client, queue);
+  }
+  const admission = queue;
+  return new Promise<void>((resolve, reject) => {
+    const run = async () => {
+      admission.active++;
+      try {
+        await request();
+        resolve();
+      } catch (error) {
+        reject(error);
+      } finally {
+        admission.active--;
+        admission.pending.shift()?.();
+      }
+    };
+    const start = () => {
+      void run();
+    };
+    if (admission.active < LIST_CONCURRENCY) start();
+    else admission.pending.push(start);
+  });
+}
+
+export function observeProviderSubagents(
+  client: ProviderSubagentListClient,
+  serverId: string,
+  parentAgentId: string,
+): () => void {
+  useProviderSubagentStore.getState().trackParent(serverId, parentAgentId);
+  void refreshProviderSubagents(client, serverId, parentAgentId).catch(() => undefined);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    useProviderSubagentStore.getState().untrackParent(serverId, parentAgentId);
+  };
+}
 
 export function refreshProviderSubagents(
   client: ProviderSubagentListClient,
@@ -87,16 +139,12 @@ export function refreshProviderSubagents(
   const pending = clientRequests.get(requestKey);
   if (pending) return pending;
 
-  useProviderSubagentStore.getState().trackParent(serverId, parentAgentId);
-  const request = client
-    .listProviderSubagents(parentAgentId)
-    .then((payload) => {
-      useProviderSubagentStore.getState().replaceList(serverId, parentAgentId, payload.subagents);
-      return undefined;
-    })
-    .finally(() => {
-      clientRequests?.delete(requestKey);
-    });
+  const request = scheduleList(client, async () => {
+    const payload = await client.listProviderSubagents(parentAgentId);
+    useProviderSubagentStore.getState().replaceList(serverId, parentAgentId, payload.subagents);
+  }).finally(() => {
+    clientRequests?.delete(requestKey);
+  });
   clientRequests.set(requestKey, request);
   return request;
 }
@@ -115,11 +163,18 @@ export async function resyncProviderSubagents(
   serverId: string,
 ): Promise<void> {
   const serverPrefix = `${serverId}\0`;
-  const parentAgentIds = [...useProviderSubagentStore.getState().trackedParents]
-    .filter((key) => key.startsWith(serverPrefix))
-    .map((key) => key.slice(serverPrefix.length, -1));
+  const state = useProviderSubagentStore.getState();
+  const parentAgentIds = new Set(
+    [...state.trackedParents.keys()]
+      .filter((key) => key.startsWith(serverPrefix))
+      .map((key) => key.slice(serverPrefix.length, -1)),
+  );
+  for (const [key, child] of state.descriptors) {
+    if (key.startsWith(serverPrefix) && child.status === "running")
+      parentAgentIds.add(child.parentAgentId);
+  }
   await Promise.all(
-    parentAgentIds.map((parentAgentId) =>
+    [...parentAgentIds].map((parentAgentId) =>
       // A parent that was archived meanwhile has nothing left to catch up.
       refreshProviderSubagents(client, serverId, parentAgentId).catch(() => undefined),
     ),
@@ -172,12 +227,24 @@ export const useProviderSubagentStore = create<ProviderSubagentState>((set) => (
   descriptors: new Map(),
   timelines: new Map(),
   hiddenFromTrack: new Set(),
-  trackedParents: new Set(),
+  trackedParents: new Map(),
   trackParent(serverId, parentAgentId) {
     set((state) => {
       const prefix = parentPrefix(serverId, parentAgentId);
-      if (state.trackedParents.has(prefix)) return state;
-      return { trackedParents: new Set(state.trackedParents).add(prefix) };
+      const trackedParents = new Map(state.trackedParents);
+      trackedParents.set(prefix, (trackedParents.get(prefix) ?? 0) + 1);
+      return { trackedParents };
+    });
+  },
+  untrackParent(serverId, parentAgentId) {
+    set((state) => {
+      const prefix = parentPrefix(serverId, parentAgentId);
+      const count = state.trackedParents.get(prefix) ?? 0;
+      if (count === 0) return state;
+      const trackedParents = new Map(state.trackedParents);
+      if (count === 1) trackedParents.delete(prefix);
+      else trackedParents.set(prefix, count - 1);
+      return { trackedParents };
     });
   },
   hideFromTrack(serverId, parentAgentId, subagentIds) {

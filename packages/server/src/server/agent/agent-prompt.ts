@@ -18,6 +18,7 @@ export type AgentRunController = Pick<
   | "reloadStalePluginSession"
   | "replaceAgentRun"
   | "steerOrReplaceActiveTurn"
+  | "steerAgentRun"
   | "streamAgent"
 > & {
   reloadAgentSession(agentId: string): Promise<unknown>;
@@ -28,6 +29,7 @@ export interface StartAgentRunOptions {
   onDispatch?: (disposition: PromptDispatchDisposition) => void;
   replaceRunning?: boolean;
   activeTurnBehavior?: ActiveTurnBehavior;
+  expectedTurnId?: string;
   runOptions?: AgentRunOptions;
   /** Ask the provider to deny permissions blocking this steer. */
   clearPendingPermissions?: boolean;
@@ -136,6 +138,19 @@ async function startAgentRunInner(
   options?: StartAgentRunOptions,
 ): Promise<{ disposition: PromptDispatchDisposition }> {
   const snapshot = agentManager.getAgent(agentId);
+  if (snapshot?.capabilities.steerOnly) {
+    const result = await agentManager.steerAgentRun(
+      agentId,
+      prompt,
+      options?.runOptions,
+      options?.expectedTurnId,
+    );
+    if (result.status !== "accepted") {
+      throw new Error("当前任务已结束或已切换，无法发送引导。");
+    }
+    options?.onDispatch?.("steered");
+    return { disposition: "steered" };
+  }
   const steered = await steerOrReplaceActiveRun(agentManager, agentId, prompt, options);
   if (steered?.disposition === "steered") {
     options?.onDispatch?.("steered");
@@ -221,6 +236,7 @@ export interface SendPromptToAgentParams {
   source?: AgentPromptSource;
   messageId?: string;
   activeTurnBehavior?: ActiveTurnBehavior;
+  expectedTurnId?: string;
   runOptions?: AgentRunOptions;
   /** Optional mode to set on the agent before the run starts. */
   sessionMode?: string;
@@ -364,6 +380,7 @@ export async function sendPreparedPromptToAgent(
     replaceRunning: true,
     onDispatch: params.onDispatch,
     activeTurnBehavior: params.activeTurnBehavior,
+    expectedTurnId: params.expectedTurnId,
     clearPendingPermissions: params.clearPendingPermissions,
     runOptions: params.runOptions,
   });

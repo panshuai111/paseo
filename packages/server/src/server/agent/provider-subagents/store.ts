@@ -1,4 +1,5 @@
 import type { AgentProvider, AgentTimelineItem } from "../agent-sdk-types.js";
+import type { ProviderSubagentDescriptorPayload } from "../../messages.js";
 import { limitAgentTimelineItemContent } from "../agent-timeline-content.js";
 import { InMemoryAgentTimelineStore } from "../agent-timeline-store.js";
 import type {
@@ -78,6 +79,22 @@ function stickyField<T>(next: T | undefined, previous: T | null | undefined): T 
 export class ProviderSubagentStore {
   private readonly descriptors = new Map<string, ProviderSubagentDescriptor>();
   private readonly timelines = new InMemoryAgentTimelineStore();
+
+  restore(descriptors: readonly ProviderSubagentDescriptorPayload[]): void {
+    for (const descriptor of descriptors) {
+      const key = storeKey(descriptor.parentAgentId, descriptor.id);
+      if (this.descriptors.has(key)) continue;
+      const status = descriptor.status === "running" ? "canceled" : descriptor.status;
+      this.descriptors.set(key, {
+        ...descriptor,
+        status,
+        parentSubagentId: descriptor.parentSubagentId ?? null,
+        cwd: descriptor.cwd ?? null,
+        subtitle: descriptor.subtitle ?? null,
+      });
+      if (!this.timelines.has(key)) this.timelines.initialize(key);
+    }
+  }
 
   apply(
     parentAgentId: string,

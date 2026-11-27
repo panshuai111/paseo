@@ -5,7 +5,13 @@ import type { Logger } from "pino";
 import type { JsonValue } from "@getpaseo/protocol/agent-types";
 
 import { writeJsonFileAtomic } from "../atomic-file.js";
-import { AgentFeatureSchema, AgentOptionControlSchema, AgentStatusSchema } from "../messages.js";
+import {
+  AgentFeatureSchema,
+  AgentStatusSchema,
+  AgentOptionControlSchema,
+  ProviderSubagentDescriptorPayloadSchema,
+  type ProviderSubagentDescriptorPayload,
+} from "../messages.js";
 import { toStoredAgentRecord } from "./agent-projections.js";
 import type { ManagedAgent } from "./agent-manager.js";
 import type { AgentSessionConfig } from "./agent-sdk-types.js";
@@ -85,6 +91,7 @@ const RAW_STORED_AGENT_SCHEMA = z.object({
   background: z.boolean().optional(),
   archivedAt: z.string().nullable().optional(),
   owner: AgentOwnerSchema.optional(),
+  providerSubagents: z.array(ProviderSubagentDescriptorPayloadSchema).optional(),
 });
 
 export type SerializableAgentConfig = Pick<
@@ -387,13 +394,18 @@ export class AgentStorage {
 
   async applySnapshot(
     agent: ManagedAgent,
-    options?: { title?: string | null; internal?: boolean },
+    options?: {
+      title?: string | null;
+      internal?: boolean;
+      providerSubagents?: ProviderSubagentDescriptorPayload[];
+    },
   ): Promise<void> {
     await this.load();
     const hasTitleOverride =
       options !== undefined && Object.prototype.hasOwnProperty.call(options, "title");
     const hasInternalOverride =
       options !== undefined && Object.prototype.hasOwnProperty.call(options, "internal");
+    const providerSubagents = options?.providerSubagents;
     await this.queueRecordMutation(agent.id, (existing) => {
       const record = toStoredAgentRecord(agent, {
         title: hasTitleOverride ? (options?.title ?? null) : (existing?.title ?? null),
@@ -411,6 +423,7 @@ export class AgentStorage {
       if (existing?.background) record.background = true;
       record.resumeOnStartup =
         existing?.resumeOnStartup && agent.lifecycle !== "idle" && agent.lifecycle !== "error";
+      record.providerSubagents = providerSubagents ?? existing?.providerSubagents;
       return record;
     });
   }

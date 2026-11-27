@@ -114,6 +114,7 @@ export type PluginClientRuntime = Pick<
   | "composers"
   | "openPanel"
   | "subscribe"
+  | "addComposerSuggestionProvider"
   | "addComposerPill"
   | "addHeaderButton"
 > & { hosts: ReturnType<typeof createPluginHosts> };
@@ -164,6 +165,7 @@ export function runPluginClientBundle(
   const themeIds = new Set<string>();
   const timelineTransformerIds = new Set<string>();
   const timelineRendererIds = new Set<string>();
+  const composerSuggestionIds = new Set<string>();
   const removals = new Set<PluginCleanup>();
   let setupComplete = false;
   let stopped = false;
@@ -249,6 +251,7 @@ export function runPluginClientBundle(
       () => workspacePanelIds.delete(normalizedId),
     );
   }
+  const registerSuggestionProvider = runtime.addComposerSuggestionProvider;
   const pluginContext: PluginClientContext = {
     ...runtime,
     addSettingsScreen(contribution) {
@@ -565,6 +568,26 @@ export function runPluginClientBundle(
         timelineRendererIds.delete(rendererId),
       );
     },
+    addComposerSuggestionProvider: registerSuggestionProvider
+      ? (provider) => {
+          if (stopped) throw new Error("Plugin has stopped");
+          const providerId = requireId(provider.id, "composer suggestion provider");
+          if (composerSuggestionIds.has(providerId))
+            throw new Error(`Duplicate composer suggestion provider: ${providerId}`);
+          const unregister = registerSuggestionProvider(provider);
+          composerSuggestionIds.add(providerId);
+          let active = true;
+          const remove = () => {
+            if (!active) return;
+            active = false;
+            void unregister();
+            composerSuggestionIds.delete(providerId);
+            removals.delete(remove);
+          };
+          removals.add(remove);
+          return remove;
+        }
+      : undefined,
     addComposerPill(contribution) {
       if (stopped) throw new Error("Plugin has stopped");
       return trackButton(runtime.addComposerPill(contribution));

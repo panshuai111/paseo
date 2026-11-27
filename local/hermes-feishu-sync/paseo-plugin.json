@@ -1,0 +1,6 @@
+{
+  "id": "hermes-feishu-sync",
+  "name": "Hermes · 飞书",
+  "description": "View Hermes Feishu conversations and guide running tasks from Paseo.",
+  "requirements": { "paseo": ">=0.16.1 <0.17.0" }
+}

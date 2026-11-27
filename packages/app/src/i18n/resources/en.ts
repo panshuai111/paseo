@@ -133,6 +133,7 @@ export const en = {
       mobile: "Message, @files, /commands",
       fallback: "Message...",
       terminal: "Prompt",
+      steerOnly: "Add guidance for the running task",
     },
     input: {
       accessibilityLabel: "Message agent...",
@@ -191,6 +192,7 @@ export const en = {
     },
     errors: {
       failedToSend: "Failed to send message",
+      noTurnToSteer: "There is no running task to guide.",
       failedToCreateAgent: "Failed to create agent",
       noHostSelected: "No host selected",
       initialPromptRequired: "Initial prompt is required",

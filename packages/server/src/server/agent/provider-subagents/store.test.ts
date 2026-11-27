@@ -2,6 +2,44 @@ import { describe, expect, test } from "vitest";
 import { ProviderSubagentStore } from "./store.js";
 
 describe("ProviderSubagentStore", () => {
+  test("restores summaries without reviving interrupted work or replacing live updates", () => {
+    const store = new ProviderSubagentStore();
+    const child = {
+      id: "child",
+      parentAgentId: "parent",
+      provider: "codex",
+      title: "Explore",
+      description: null,
+      toolCallId: "spawn",
+      status: "running" as const,
+      createdAt: "2026-11-05T00:00:00.000Z",
+      updatedAt: "2026-11-05T01:00:00.000Z",
+    };
+    store.restore([child]);
+    expect(store.list("parent")).toEqual([
+      {
+        ...child,
+        status: "canceled",
+        parentSubagentId: null,
+        cwd: null,
+        subtitle: null,
+      },
+    ]);
+    expect(child.status).toBe("running");
+    store.apply("parent", "codex", {
+      type: "upsert",
+      id: "child",
+      status: "completed",
+      timestamp: "2026-11-06T00:00:00.000Z",
+    });
+    store.restore([child]);
+    expect(store.get("parent", "child")).toMatchObject({
+      status: "completed",
+      createdAt: child.createdAt,
+      updatedAt: "2026-11-06T00:00:00.000Z",
+    });
+  });
+
   test("keeps provider children and their timelines scoped to the parent agent", () => {
     const subagents = new ProviderSubagentStore();
 

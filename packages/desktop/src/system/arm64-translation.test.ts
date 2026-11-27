@@ -8,6 +8,21 @@ describe("detectRunningUnderARM64Translation", () => {
     expect(
       detectRunningUnderARM64Translation({
         platform: "linux",
+        arch: "x64",
+        electronReportedTranslation: true,
+        execFileSyncImpl,
+      }),
+    ).toBe(false);
+    expect(execFileSyncImpl).not.toHaveBeenCalled();
+  });
+
+  it("never reports Rosetta for a native arm64 process", () => {
+    const execFileSyncImpl = vi.fn(() => "1\n");
+
+    expect(
+      detectRunningUnderARM64Translation({
+        platform: "darwin",
+        arch: "arm64",
         electronReportedTranslation: true,
         execFileSyncImpl,
       }),
@@ -21,6 +36,7 @@ describe("detectRunningUnderARM64Translation", () => {
     expect(
       detectRunningUnderARM64Translation({
         platform: "darwin",
+        arch: "x64",
         electronReportedTranslation: true,
         execFileSyncImpl,
       }),
@@ -34,6 +50,7 @@ describe("detectRunningUnderARM64Translation", () => {
     expect(
       detectRunningUnderARM64Translation({
         platform: "darwin",
+        arch: "x64",
         electronReportedTranslation: false,
         execFileSyncImpl,
       }),
@@ -52,6 +69,7 @@ describe("detectRunningUnderARM64Translation", () => {
     expect(
       detectRunningUnderARM64Translation({
         platform: "darwin",
+        arch: "x64",
         execFileSyncImpl,
       }),
     ).toBe(false);

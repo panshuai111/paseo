@@ -132,6 +132,7 @@ export const ja: TranslationResources = {
   },
   composer: {
     placeholders: {
+      steerOnly: "実行中のタスクに指示を追加",
       desktop: "エージェントにメッセージ、@ファイル、/コマンドや/スキルを入力",
       mobile: "メッセージ、@ファイル、/コマンド",
       fallback: "メッセージ...",
@@ -193,6 +194,7 @@ export const ja: TranslationResources = {
       removeReview: "レビュー添付ファイルを削除",
     },
     errors: {
+      noTurnToSteer: "指示を追加できる実行中のタスクがありません。",
       failedToSend: "メッセージの送信に失敗しました",
       failedToCreateAgent: "エージェントの作成に失敗しました",
       noHostSelected: "ホストが選択されていません",

@@ -181,6 +181,7 @@ interface FakeSendCall {
   options: {
     messageId: string;
     activeTurnBehavior?: "interrupt" | "steer";
+    expectedTurnId?: string;
     images: Array<{ data: string; mimeType: string }>;
     attachments: AgentAttachment[];
   };
@@ -461,6 +462,25 @@ describe("dispatchComposerAgentMessage", () => {
       activeTurnBehavior: "steer",
     });
     expect(legacy.tail.get("legacy")?.[0]?.turnId).toBeUndefined();
+  });
+
+  it("sends the selected execution identity when a guide must stay on that turn", async () => {
+    const client = createFakeSendClient();
+    await dispatchComposerAgentMessage({
+      client,
+      agentId: "agent",
+      text: "guide the turn",
+      attachments: [],
+      encodeImages: async () => [],
+      submission: createFakeStream(),
+      activeTurnBehavior: "steer",
+      activeTurnId: "turn-1",
+      expectedTurnId: "turn-1",
+    });
+    expect(client.calls[0]?.options).toMatchObject({
+      activeTurnBehavior: "steer",
+      expectedTurnId: "turn-1",
+    });
   });
 
   it("removes the submitted prompt when the host rejects it", async () => {

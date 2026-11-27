@@ -1,0 +1,8 @@
+{
+  "id": "workspace-file-artifacts",
+  "name": "File Artifacts",
+  "description": "Filename links opening native file panels, with read-only Office previews and theme-aware spreadsheet colors.",
+  "requirements": {
+    "paseo": ">=0.16.1 <0.17.0"
+  }
+}

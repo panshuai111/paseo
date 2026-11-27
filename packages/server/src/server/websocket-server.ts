@@ -2101,6 +2101,7 @@ export class VoiceAssistantWebSocketServer {
         pluginTimelineItems: true,
         // COMPAT(pluginSubscriptions): added in v0.15.0, remove gate after 2027-05-02.
         pluginSubscriptions: true,
+        replySuggestions: true,
         // COMPAT(skillManagement): added in v0.4.0, remove gate after 2027-08-16.
         skillManagement: true,
         // COMPAT(idleRuntimeCleanupSetting): added in v0.13.0, remove gate after 2027-04-26.

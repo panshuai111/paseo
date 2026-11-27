@@ -135,6 +135,7 @@ export const zhCN: TranslationResources = {
       mobile: "发消息，@files，/commands",
       fallback: "输入消息...",
       terminal: "Prompt",
+      steerOnly: "补充要求，引导 Hermes 当前任务",
     },
     input: {
       accessibilityLabel: "给 Agent 发消息...",
@@ -193,6 +194,7 @@ export const zhCN: TranslationResources = {
     },
     errors: {
       failedToSend: "发送消息失败",
+      noTurnToSteer: "当前没有运行中的任务。",
       failedToCreateAgent: "创建 Agent 失败",
       noHostSelected: "未选择 Host",
       initialPromptRequired: "初始 prompt 必填",

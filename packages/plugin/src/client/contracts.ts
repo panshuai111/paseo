@@ -221,6 +221,8 @@ interface PluginClientContextAliases {
 }
 
 export interface PluginClientContext extends PluginCommandCapabilities, PluginClientContextAliases {
+  /** Local composer suggestions extension; unavailable in community builds. */
+  addComposerSuggestionProvider?: import("./suggestions.js").RegisterComposerSuggestionProvider;
   readonly i18n: import("./translations.js").PluginI18n;
   /** Play a base64-encoded audio file on this client; resolves when playback ends. */
   playAudio(source: { base64: string; mimeType: string }): Promise<void>;

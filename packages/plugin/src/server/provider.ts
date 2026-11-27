@@ -9,6 +9,7 @@ export const PROVIDER_CAPABILITIES = [
   "prompt.image",
   "prompt.output_schema",
   "prompt.steer",
+  "prompt.steer_only",
   "session.can_stop_runtime",
   "session.archive",
   "session.configure",
@@ -141,6 +142,7 @@ export interface ProviderConfigChanges {
 export interface ProviderPrompt {
   clientMessageId: string;
   delivery: "auto" | "steer";
+  expectedTurnId?: string;
   input:
     | { type: "message"; content: ProviderContent[] }
     | { type: "command"; name: string; arguments: string };
@@ -917,6 +919,7 @@ const promptSchema = z
   .object({
     clientMessageId: idSchema,
     delivery: z.enum(["auto", "steer"]),
+    expectedTurnId: idSchema.optional(),
     input: z.union([
       z.object({ type: z.literal("message"), content: z.array(providerContentSchema) }).strict(),
       z.object({ type: z.literal("command"), name: idSchema, arguments: z.string() }).strict(),

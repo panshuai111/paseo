@@ -762,7 +762,7 @@ function ChatAgentContent({
   });
   const reportAttentionError = useCallback(
     (error: unknown) => {
-      toastApi.show(String(error), { variant: "error", durationMs: null });
+      toastApi.error(toErrorMessage(error));
     },
     [toastApi],
   );
@@ -1694,6 +1694,7 @@ function ActiveAgentComposer({
         isPaneFocused={isPaneFocused}
         textSource={agentInputDraft.textSource}
         onChangeText={agentInputDraft.editText}
+        onReplaceText={agentInputDraft.replaceText}
         textReplacement={agentInputDraft.textReplacement}
         attachments={agentInputDraft.attachments}
         attachmentScopeKeys={attachmentScopeKeys}

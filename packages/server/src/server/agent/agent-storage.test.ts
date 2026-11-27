@@ -250,6 +250,31 @@ describe("AgentStorage", () => {
     expect(allocatedBytes).toBeLessThan(4 * 1024 * 1024);
   });
 
+  test("preserves child summaries across ordinary snapshots and reloads them from disk", async () => {
+    const agent = createManagedAgent({ id: "parent" });
+    const children = [
+      {
+        id: "child",
+        parentAgentId: agent.id,
+        provider: "codex",
+        title: "Explore",
+        description: null,
+        status: "completed" as const,
+        createdAt: "2026-11-06T00:00:00.000Z",
+        updatedAt: "2026-11-06T00:00:00.000Z",
+        toolCallId: "spawn",
+      },
+    ];
+    await storage.applySnapshot(agent, { providerSubagents: children });
+    await storage.applySnapshot(agent, { title: "Renamed parent" });
+    const reloaded = new AgentStorage(storagePath, logger);
+    expect((await reloaded.get(agent.id))?.providerSubagents).toEqual(children);
+    await reloaded.applySnapshot(agent, { providerSubagents: [] });
+    expect((await new AgentStorage(storagePath, logger).get(agent.id))?.providerSubagents).toEqual(
+      [],
+    );
+  });
+
   test("applySnapshot persists configs and snapshot metadata", async () => {
     await storage.applySnapshot(
       createManagedAgent({

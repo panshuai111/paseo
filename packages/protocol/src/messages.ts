@@ -44,6 +44,12 @@ export {
 import { TerminalProfileSchema } from "./terminal-profile.js";
 export { TerminalProfileSchema, type TerminalProfile } from "./terminal-profile.js";
 import { z } from "zod";
+import {
+  ReplySuggestionRequestSchema,
+  ReplySuggestionCancelRequestSchema,
+  ReplySuggestionResponseSchema,
+  ReplySuggestionCancelResponseSchema,
+} from "./reply-suggestions.js";
 import { TerminalActivitySchema } from "./terminal-activity.js";
 import { CLIENT_CAPS } from "./client-capabilities.js";
 import { AGENT_LIFECYCLE_STATUSES } from "./agent-lifecycle.js";
@@ -470,6 +476,8 @@ const AgentCapabilityFlagsSchema: z.ZodType<AgentCapabilityFlags> = z
     supportsRewindFiles: z.boolean().optional().default(false),
     // COMPAT(rewind): added in v0.1.X, drop when floor >= v0.1.X.
     supportsRewindBoth: z.boolean().optional().default(false),
+    steerOnly: z.boolean().optional(),
+    supportsReplySuggestions: z.boolean().optional(),
   })
   .catchall(z.boolean());
 
@@ -1517,6 +1525,7 @@ export const SendAgentMessageRequestSchema = z.object({
   sessionMode: z.string().optional(),
   messageId: z.string().optional(), // Client-provided ID for deduplication
   activeTurnBehavior: ActiveTurnBehaviorSchema.optional(),
+  expectedTurnId: z.string().min(1).optional(),
   images: z.array(ImageAttachmentSchema).optional(),
   attachments: AgentAttachmentsSchema,
 });
@@ -3627,6 +3636,8 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   AgentBackgroundWorkStopRequestMessageSchema,
   ProviderSubagentTimelineRequestMessageSchema,
   SetAgentTimelineSubscriptionRequestMessageSchema,
+  ReplySuggestionRequestSchema,
+  ReplySuggestionCancelRequestSchema,
   AgentForkContextRequestMessageSchema,
   SetAgentModeRequestMessageSchema,
   SetAgentModelRequestMessageSchema,
@@ -4001,6 +4012,7 @@ export const ServerInfoStatusPayloadSchema = z
         pluginTimelineItems: z.boolean().optional(),
         // COMPAT(pluginSubscriptions): added in v0.15.0, remove gate after 2027-05-02.
         pluginSubscriptions: z.boolean().optional(),
+        replySuggestions: z.boolean().optional(),
         // COMPAT(skillManagement): added in v0.4.0, remove gate after 2027-08-16.
         skillManagement: z.boolean().optional(),
         // COMPAT(idleRuntimeCleanupSetting): added in v0.13.0, remove gate after 2027-04-26.
@@ -7521,6 +7533,8 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   AgentBackgroundWorkUpdateMessageSchema,
   SetAgentTimelineSubscriptionResponseMessageSchema,
   AgentAttentionRequiredMessageSchema,
+  ReplySuggestionResponseSchema,
+  ReplySuggestionCancelResponseSchema,
   AgentForkContextResponseMessageSchema,
   CancelAgentResponseMessageSchema,
   ClearAgentAttentionResponseMessageSchema,

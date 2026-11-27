@@ -131,6 +131,7 @@ export const ar: TranslationResources = {
   },
   composer: {
     placeholders: {
+      steerOnly: "أضف توجيهًا للمهمة الجارية",
       desktop: "أرسل رسالة إلى الوكيل أو ضع علامة على @files أو استخدم /commands و /skills",
       mobile: "الرسالة، @files ، /commands",
       fallback: "رسالة...",
@@ -192,6 +193,7 @@ export const ar: TranslationResources = {
       removeReview: "إزالة مرفق المراجعة",
     },
     errors: {
+      noTurnToSteer: "لا توجد مهمة جارية لتوجيهها.",
       failedToSend: "فشل في إرسال الرسالة",
       failedToCreateAgent: "فشل في إنشاء الوكيل",
       noHostSelected: "لم يتم تحديد مضيف",

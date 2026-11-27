@@ -463,6 +463,9 @@ export interface PaseoAgentHandle {
    * `error` string; a provider that cannot answer reports it there rather than
    * rejecting.
    */
+  suggestReply(
+    options: import("@getpaseo/protocol/reply-suggestions").ReplySuggestionOptions,
+  ): Promise<string | null>;
   commands(options?: PaseoAgentCommandsOptions): Promise<PaseoAgentCommandsResult>;
   archive(): Promise<{ archivedAt: string }>;
   detach(): Promise<void>;
@@ -1184,6 +1187,7 @@ function createAgentHandleFactory(
         }
         return result;
       },
+      suggestReply: (options) => daemonClient.suggestReply(id, options),
       commands: (options) => daemonClient.listCommands({ agentId: id, ...options }),
       archive: async () => {
         const result = await daemonClient.archiveAgent(id);

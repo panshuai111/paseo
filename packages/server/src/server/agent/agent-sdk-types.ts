@@ -179,6 +179,9 @@ export interface AgentCapabilityFlags {
   supportsRewindConversation?: boolean;
   supportsRewindFiles?: boolean;
   supportsRewindBoth?: boolean;
+  /** Prompts are accepted only as guidance for an already running turn. */
+  steerOnly?: boolean;
+  supportsReplySuggestions?: boolean;
 }
 
 export interface AgentPersistenceHandle {
@@ -688,6 +691,7 @@ export interface AgentUsageSession {
 }
 
 export interface AgentSession {
+  suggestReply?(input: { prompt: string; signal: AbortSignal }): Promise<string | null>;
   usageSession?(): AgentUsageSession | null;
   readonly provider: AgentProvider;
   readonly id: string | null;

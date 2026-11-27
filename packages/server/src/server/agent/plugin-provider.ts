@@ -1312,12 +1312,14 @@ class PluginAgentSession implements AgentSession {
     const result = await this.bridge.prompt({
       clientMessageId: options.clientMessageId ?? randomUUID(),
       delivery: "steer",
+      ...(this.capabilities.steerOnly ? { expectedTurnId: options.expectedTurnId } : {}),
       input: { type: "message", content: mapPromptContent(prompt) },
       ...(options.outputSchema === undefined
         ? {}
         : { outputSchema: toJsonValue(options.outputSchema, "output schema") }),
       clearPendingPermissions: options.clearPendingPermissions,
     });
+    if (result.type === "failed" && this.capabilities.steerOnly) throw providerError(result.error);
     return result.type === "steer" && result.turnId === options.expectedTurnId
       ? { status: "accepted" }
       : { status: "unavailable" };
@@ -1920,6 +1922,7 @@ function agentCapabilities(capabilities: readonly string[]): AgentCapabilityFlag
     supportsRewindConversation: supports("session.revert.conversation"),
     supportsRewindFiles: supports("session.revert.files"),
     supportsRewindBoth: supports("session.revert.both"),
+    ...(supports("prompt.steer_only") ? { steerOnly: true } : {}),
   };
 }
 

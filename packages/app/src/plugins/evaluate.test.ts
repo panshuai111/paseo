@@ -989,3 +989,37 @@ describe("file panels", () => {
     ).toThrow("Duplicate file panel");
   });
 });
+
+it("cleans up composer suggestion providers on setup failure and unload", async () => {
+  let active = 0;
+  const adapter = {
+    ...runtime,
+    addComposerSuggestionProvider() {
+      active++;
+      return () => {
+        active--;
+      };
+    },
+  };
+  expect(() =>
+    runPluginClientBundle(
+      "failed-suggestion",
+      bundle(
+        `plugin.addComposerSuggestionProvider({ id: "suggestion", async provide() { return "example"; } }); throw new Error("Setup failed");`,
+      ),
+      adapter,
+    ),
+  ).toThrow("Setup failed");
+  expect(active).toBe(0);
+  const plugin = runPluginClientBundle(
+    "suggestion",
+    bundle(
+      `plugin.addComposerSuggestionProvider({ id: "suggestion", async provide() { return "example"; } });`,
+    ),
+    adapter,
+  );
+  expect(active).toBe(1);
+  await plugin.cleanup();
+  await plugin.cleanup();
+  expect(active).toBe(0);
+});

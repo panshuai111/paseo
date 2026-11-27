@@ -3,7 +3,7 @@ import { ProviderOptionsValidationError } from "./provider-options.js";
 import type { AgentToolResult } from "@getpaseo/plugin/server";
 import type { RuntimeCleanupCandidate } from "./idle-runtime-cleanup/index.js";
 import { AgentNotFoundError, ensureAgentLoaded } from "./agent-loading.js";
-import { projectTimelineRows } from "./timeline-projection.js";
+import { continuesAssistantMessage, projectTimelineRows } from "./timeline-projection.js";
 import type { PluginLifecycle } from "../plugins/lifecycle/index.js";
 import { describeHookAgent, publishAgentStream } from "../plugins/lifecycle/index.js";
 import { applyRecordPatch } from "../record-patch.js";
@@ -114,6 +114,7 @@ import {
 import { AgentBackgroundWorkStore, type AgentBackgroundWorkItem } from "./background-work/index.js";
 import { withTimeout } from "../../utils/promise-timeout.js";
 import { buildSessionConfig, extractAttention } from "../persistence-hooks.js";
+import type { ProviderSubagentDescriptorPayload } from "../messages.js";
 
 const RELOAD_SESSION_CLOSE_TIMEOUT_MS = 3_000;
 const INTERRUPT_SESSION_TIMEOUT_MS = 2_000;
@@ -1450,6 +1451,31 @@ export class AgentManager {
     if (items) this.dispatch({ type: "background_work", agentId, items });
   }
 
+  /** Status reads must not acquire a provider runtime, including after a daemon restart. */
+  async readProviderSubagents(parentAgentId: string): Promise<ProviderSubagentDescriptorPayload[]> {
+    const record = await this.registry?.get(parentAgentId);
+    if (record?.archivedAt) {
+      throw new Error(`Agent is archived: ${parentAgentId}`);
+    }
+    if (this.agents.has(parentAgentId)) {
+      return this.listProviderSubagents(parentAgentId);
+    }
+    if (!record || record.internal) {
+      throw new Error(`Agent not found: ${parentAgentId}`);
+    }
+    if (record.providerSubagents === undefined) {
+      throw new Error(
+        "Subagent history has not been loaded. Open the parent conversation to load it.",
+      );
+    }
+    // A stored running descriptor cannot outlive its owning runtime after a crash/restart.
+    const subagents = structuredClone(record.providerSubagents);
+    for (const child of subagents) {
+      if (child.status === "running") child.status = "canceled";
+    }
+    return subagents;
+  }
+
   listProviderSubagentActivity(): ProviderSubagentDescriptor[] {
     const publicParentIds = new Set(
       Array.from(this.agents.values())
@@ -1719,6 +1745,7 @@ export class AgentManager {
     );
     if (purpose === "history") this.historySessions.add(session);
     await this.requireExternalMcpSupport(session, providerLaunchConfig, launchContext);
+    this.providerSubagents.restore(record?.providerSubagents ?? []);
     return this.registerSession(session, storedConfig, resolvedAgentId, {
       launchedOptions,
       ...options,
@@ -1819,6 +1846,7 @@ export class AgentManager {
         const update = this.providerSubagents.apply(agent.id, event.provider, event.event);
         this.dispatch({ type: "provider_subagent", event: update });
       }
+      await this.persistSnapshot(agent);
       return agent;
     } finally {
       if (!handedToRegistration) {
@@ -3431,9 +3459,13 @@ export class AgentManager {
     agentId: string,
     prompt: AgentPromptInput,
     options?: AgentSteerOptions,
+    requestedTurnId?: string,
   ): Promise<SteerResult> {
     const agent = this.requireSessionAgent(agentId);
     const expectedTurnId = agent.activeForegroundTurnId ?? agent.activeTurnId;
+    if (requestedTurnId && expectedTurnId !== requestedTurnId) {
+      return { status: "unavailable" };
+    }
     if (!expectedTurnId || !agent.session.steerActiveTurn) {
       return { status: "unavailable" };
     }
@@ -4058,24 +4090,16 @@ export class AgentManager {
   private getLastAssistantMessageSegmentFromTimeline(
     timeline: readonly Pick<AgentTimelineRow, "item" | "turnId">[],
   ): { text: string; startsAtBeginning: boolean } | null {
-    // Collect the last contiguous assistant messages of one turn (Claude streams chunks).
-    // A turn the provider starts on its own has no user message before its reply.
+    // Collect the chunks of the last assistant message (Claude streams chunks). A turn the
+    // provider starts on its own has no user message before its reply.
     const chunks: string[] = [];
-    let replyTurnId: string | undefined;
     let startsAtBeginning = false;
     for (let i = timeline.length - 1; i >= 0; i--) {
-      const { item, turnId } = timeline[i];
-      if (item.type !== "assistant_message") {
-        if (chunks.length) {
-          break;
-        }
-        continue;
-      }
-      if (chunks.length === 0) {
-        replyTurnId = turnId;
-      } else if (turnId !== replyTurnId) {
+      const { item } = timeline[i];
+      if (chunks.length > 0 && !continuesAssistantMessage(timeline[i], timeline[i + 1])) {
         break;
       }
+      if (item.type !== "assistant_message") continue;
       chunks.push(item.text);
       startsAtBeginning = i === 0;
     }
@@ -4726,6 +4750,7 @@ export class AgentManager {
   ): Promise<void> {
     if (event.type === "provider_subagent") {
       const update = this.providerSubagents.apply(agent.id, event.provider, event.event);
+      if (event.event.type !== "timeline") this.enqueueBackgroundPersist(agent);
       this.dispatch({ type: "provider_subagent", event: update });
       return;
     }
@@ -4801,7 +4826,10 @@ export class AgentManager {
     if (agent.internal) {
       return;
     }
-    await this.registry.applySnapshot(agent, options);
+    await this.registry.applySnapshot(agent, {
+      ...options,
+      providerSubagents: this.providerSubagents.list(agent.id),
+    });
   }
 
   private requireRegistry(): AgentStorage {
@@ -4953,6 +4981,7 @@ export class AgentManager {
     }
     this.touchUpdatedAt(agent);
     this.emitState(agent);
+    await this.persistSnapshot(agent);
   }
 
   private async primeTimelineFromLegacyProviderHistory(
@@ -5023,6 +5052,8 @@ export class AgentManager {
       }
     }
     agent.historyPrimed = true;
+
+    await this.persistSnapshot(agent);
 
     if (typeof broadcast !== "function" || !broadcast()) {
       return;

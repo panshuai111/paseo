@@ -24,7 +24,6 @@ import { SubagentsTrack } from "@/subagents/track";
 import {
   providerSubagentKey,
   providerSubagentLifecycleStatus,
-  refreshProviderSubagents,
   observeProviderSubagentTimeline,
   loadOlderProviderSubagentTimeline,
   useProviderSubagentStore,
@@ -153,11 +152,6 @@ function ProviderSubagentPanel() {
     },
     [openTab],
   );
-
-  useEffect(() => {
-    if (!client || !supported) return;
-    void refreshProviderSubagents(client, serverId, target.parentAgentId).catch(() => undefined);
-  }, [client, serverId, supported, target.parentAgentId]);
 
   useEffect(() => {
     if (!client || !supported) return;

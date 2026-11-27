@@ -1,3 +1,4 @@
+import { suggestionRegistry } from "@/composer/suggestions/registry";
 import { createPlayAudio, type AudioEngine } from "@/audio";
 import { getPluginClientApi } from "./client-state/api";
 import type { PluginClientOpenPanelOptions } from "@getpaseo/plugin/client";
@@ -27,6 +28,9 @@ export function createPluginClientRuntime(
     i18n: installation.i18n,
     playAudio: createPlayAudio(audio, installation.lifetime.signal),
     hosts: getPluginClientApi(installation).hosts,
+    addComposerSuggestionProvider(provider) {
+      return suggestionRegistry.add(installation.serverId, provider);
+    },
     addComposerPill(contribution) {
       return pluginButtonStore.addComposerPill(installation, contribution);
     },

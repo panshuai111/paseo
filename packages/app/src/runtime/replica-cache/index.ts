@@ -186,6 +186,7 @@ const AgentCapabilitiesSchema = z.strictObject({
   supportsRewindConversation: z.boolean().optional(),
   supportsRewindFiles: z.boolean().optional(),
   supportsRewindBoth: z.boolean().optional(),
+  steerOnly: z.boolean().optional(),
 });
 
 const StoredProjectCheckoutSchema = z.union([
@@ -649,6 +650,7 @@ function serializeAgentCapabilities(
     supportsDynamicModes: capabilities.supportsDynamicModes,
     supportsMcpServers: capabilities.supportsMcpServers,
     supportsReasoningStream: capabilities.supportsReasoningStream,
+    ...(capabilities.steerOnly ? { steerOnly: true } : {}),
     supportsToolInvocations: capabilities.supportsToolInvocations,
     ...(capabilities.supportsRewindConversation !== undefined
       ? { supportsRewindConversation: capabilities.supportsRewindConversation }

@@ -132,6 +132,7 @@ export const es: TranslationResources = {
   },
   composer: {
     placeholders: {
+      steerOnly: "Añade instrucciones para la tarea en curso",
       desktop: "Envíe un mensaje al agente, etiquete@fileso use/commandsy/skills",
       mobile: "Mensaje,@files,/commands",
       fallback: "Mensaje...",
@@ -193,6 +194,7 @@ export const es: TranslationResources = {
       removeReview: "Eliminar archivo adjunto de reseña",
     },
     errors: {
+      noTurnToSteer: "No hay ninguna tarea en curso que guiar.",
       failedToSend: "No se pudo enviar el mensaje",
       failedToCreateAgent: "No se pudo crear el agente",
       noHostSelected: "Ningún anfitrión seleccionado",

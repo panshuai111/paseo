@@ -1,11 +1,12 @@
 import type { AgentAddress } from "@getpaseo/protocol/addresses";
 import { getParentAddressFromLabels } from "@getpaseo/protocol/agent-labels";
 import { useEffect, useMemo } from "react";
+import { useRetainedPanelActive } from "@/components/retained-panel";
 import { usePendingArchiveAgentKeys } from "@/hooks/use-archive-agent";
 import equal from "fast-deep-equal";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { useSessionStore, type Agent } from "@/stores/session-store";
-import { refreshProviderSubagents, useProviderSubagentStore } from "./provider-store";
+import { observeProviderSubagents, useProviderSubagentStore } from "./provider-store";
 import type { ProviderSubagentDescriptorPayload } from "@getpaseo/protocol/messages";
 
 export interface PaseoSubagentRow {
@@ -192,13 +193,12 @@ export function useSubagentsForParent(params: SelectSubagentsParams): SubagentRo
     equal,
   );
   const client = useSessionStore((state) => state.sessions[params.serverId]?.client ?? null);
+  const active = useRetainedPanelActive();
 
   useEffect(() => {
-    if (!client || !supported) return;
-    void refreshProviderSubagents(client, params.serverId, params.parentAgentId).catch(
-      () => undefined,
-    );
-  }, [client, params.parentAgentId, params.serverId, supported]);
+    if (!client || !supported || !active) return;
+    return observeProviderSubagents(client, params.serverId, params.parentAgentId);
+  }, [active, client, params.parentAgentId, params.serverId, supported]);
 
   return useMemo(() => {
     if (params.providerParentSubagentId) return providerRows;

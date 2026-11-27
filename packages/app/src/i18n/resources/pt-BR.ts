@@ -132,6 +132,7 @@ export const ptBR: TranslationResources = {
   },
   composer: {
     placeholders: {
+      steerOnly: "Adicione orientações à tarefa em andamento",
       desktop: "Envie uma mensagem ao agente, marque @files ou use /commands e /skills",
       mobile: "Mensagem, @files, /commands",
       fallback: "Mensagem...",
@@ -193,6 +194,7 @@ export const ptBR: TranslationResources = {
       removeReview: "Remover anexo de revisão",
     },
     errors: {
+      noTurnToSteer: "Não há tarefa em andamento para orientar.",
       failedToSend: "Falha ao enviar mensagem",
       failedToCreateAgent: "Falha ao criar agente",
       noHostSelected: "Nenhum host selecionado",
