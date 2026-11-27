@@ -216,6 +216,7 @@ test("moves a project into and out of the collapsible Other projects section", a
 
     await openProjectActions(page, projectViewKey);
     await expect(moveItem).toHaveText("Move to Other projects");
+    await expect(moveItem.locator("svg")).toBeVisible();
     await moveItem.click();
     await expect(sectionHeader).toHaveAttribute("aria-expanded", "false");
     await expect(projectRow).toHaveCount(0);
@@ -232,6 +233,7 @@ test("moves a project into and out of the collapsible Other projects section", a
 
     await openProjectActions(page, projectViewKey);
     await expect(moveItem).toHaveText("Move out of Other projects");
+    await expect(moveItem.locator("svg")).toBeVisible();
     await moveItem.click();
     await expect(otherSection).toHaveCount(0);
     await expect(projectRow).toBeVisible();

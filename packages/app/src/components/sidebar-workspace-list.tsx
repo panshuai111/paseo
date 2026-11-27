@@ -38,7 +38,15 @@ import { getSidebarRowBackdrop } from "@/components/sidebar/sidebar-row-backdrop
 import { type GestureType } from "react-native-gesture-handler";
 import { useSidebarWorkspaceRename } from "@/workspace-rename";
 import { useWorkspaceClipboardActions } from "@/hooks/use-workspace-clipboard-actions";
-import { ExternalLink, Settings, MoreVertical, Plus, Trash2 } from "lucide-react-native";
+import {
+  ExternalLink,
+  FolderInput,
+  FolderOutput,
+  Settings,
+  MoreVertical,
+  Plus,
+  Trash2,
+} from "lucide-react-native";
 import { NestableScrollContainer } from "react-native-draggable-flatlist";
 import { DraggableList, type DraggableRenderItemInfo } from "./draggable-list";
 import type { DraggableListDragHandleProps } from "./draggable-list.types";
@@ -163,6 +171,8 @@ const projectViewKeyExtractor = (project: SidebarProjectEntry) => project.viewKe
 
 const WORKSPACE_STATUS_DOT_WIDTH = 14;
 const ThemedExternalLink = withUnistyles(ExternalLink);
+const ThemedFolderInput = withUnistyles(FolderInput);
+const ThemedFolderOutput = withUnistyles(FolderOutput);
 const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
 const ThemedPlus = withUnistyles(Plus);
 const ThemedMoreVertical = withUnistyles(MoreVertical);
@@ -464,6 +474,12 @@ const settingsLeadingIcon = <ThemedSettings size={14} uniProps={foregroundMutedC
 const openInNewWindowLeadingIcon = (
   <ThemedExternalLink size={14} uniProps={foregroundMutedColorMapping} />
 );
+const moveToOtherProjectsLeadingIcon = (
+  <ThemedFolderInput size={14} uniProps={foregroundMutedColorMapping} />
+);
+const moveOutOfOtherProjectsLeadingIcon = (
+  <ThemedFolderOutput size={14} uniProps={foregroundMutedColorMapping} />
+);
 
 const kebabTriggerIconProps = densityIconProps("sm", foregroundMutedColorMapping);
 const kebabTriggerIconHoveredProps = densityIconProps("sm", foregroundColorMapping);
@@ -598,6 +614,9 @@ function ProjectMenuItems({
       <ProjectMenuItem
         surface={surface}
         testID={`sidebar-project-menu-toggle-other-${projectViewKey}`}
+        leading={
+          isOtherProject ? moveOutOfOtherProjectsLeadingIcon : moveToOtherProjectsLeadingIcon
+        }
         onSelect={handleToggleOtherProject}
       >
         {t(isOtherProject ? "sidebar.otherProjects.moveOut" : "sidebar.otherProjects.moveIn")}
