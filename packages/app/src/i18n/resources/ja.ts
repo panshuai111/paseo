@@ -1280,6 +1280,11 @@ export const ja: TranslationResources = {
         "ワークスペースを表示するにはサイドバーのフィルターを変更またはクリアしてください。",
       clear: "フィルターをクリア",
     },
+    otherProjects: {
+      title: "その他のプロジェクト",
+      moveIn: "その他のプロジェクトに移動",
+      moveOut: "その他のプロジェクトから移動",
+    },
     pinned: {
       title: "固定済み",
     },

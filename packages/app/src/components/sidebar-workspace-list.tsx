@@ -98,6 +98,7 @@ import {
 } from "@/components/sidebar/sidebar-workspace-menu";
 import { useLongPressDragInteraction } from "@/components/sidebar/use-long-press-drag-interaction";
 import { SidebarSectionHeader } from "@/components/sidebar/sidebar-section-header";
+import type { SidebarProjectSections } from "@/components/sidebar/sidebar-projection";
 import { SidebarGroupToggleRow } from "@/components/sidebar/sidebar-group-toggle-row";
 import { createWorkspaceVisibilityPolicy } from "@/components/sidebar/sidebar-group-visibility";
 import { useLimitedSidebarGroup } from "@/components/sidebar/use-limited-sidebar-group";
@@ -219,6 +220,7 @@ interface SidebarWorkspaceListProps {
   /** What `useProjectIcons` is asked for, straight from the projection. See `SidebarProjection`. */
   projectIconTargets: SidebarProjectIconTarget[];
   pinnedGroups: PinnedSidebarGroups;
+  projectSections: SidebarProjectSections;
   projects: SidebarProjectEntry[];
   hasProjectsBeforeFilter: boolean;
   /** Whether a project filter is actually being applied — the resolved list, not the stored one. */
@@ -543,6 +545,13 @@ function ProjectMenuItems({
 }) {
   const { t } = useTranslation();
   const toast = useToast();
+  const isOtherProject = useSidebarCollapsedSectionsStore((state) =>
+    state.otherProjectKeys.has(projectViewKey),
+  );
+  const toggleOtherProject = useSidebarCollapsedSectionsStore((state) => state.toggleOtherProject);
+  const handleToggleOtherProject = useCallback(() => {
+    toggleOtherProject(projectViewKey);
+  }, [projectViewKey, toggleOtherProject]);
   const handleOpenProjectSettings = useCallback(() => {
     if (!settingsTarget) return;
     router.navigate(buildProjectSettingsRoute(settingsTarget.serverId, settingsTarget.projectId));
@@ -586,6 +595,13 @@ function ProjectMenuItems({
         path={projectPath}
         testID={`sidebar-project-menu-open-folder-${projectViewKey}`}
       />
+      <ProjectMenuItem
+        surface={surface}
+        testID={`sidebar-project-menu-toggle-other-${projectViewKey}`}
+        onSelect={handleToggleOtherProject}
+      >
+        {t(isOtherProject ? "sidebar.otherProjects.moveOut" : "sidebar.otherProjects.moveIn")}
+      </ProjectMenuItem>
       <ProjectMenuItem
         surface={surface}
         testID={`sidebar-project-menu-remove-${projectViewKey}`}
@@ -1931,6 +1947,7 @@ export function SidebarWorkspaceList({
   workspaceGroups,
   projectIconTargets,
   pinnedGroups,
+  projectSections,
   projects,
   hasProjectsBeforeFilter,
   hasActiveProjectFilter,
@@ -2026,6 +2043,7 @@ export function SidebarWorkspaceList({
       <ProjectModeList
         projects={projects}
         pinnedGroups={pinnedGroups}
+        projectSections={projectSections}
         workspaceEntriesByKey={workspaceEntriesByKey}
         projectIconByProjectViewKey={projectIconByProjectViewKey}
         collapsedProjectKeys={collapsedProjectKeys}
@@ -2122,6 +2140,7 @@ function SidebarGroupedModeList({
 function ProjectModeList({
   projects,
   pinnedGroups,
+  projectSections,
   workspaceEntriesByKey,
   projectIconByProjectViewKey,
   collapsedProjectKeys,
@@ -2169,6 +2188,9 @@ function ProjectModeList({
   );
   const showShortcutBadges = useShowShortcutBadges();
   const pinnedCollapsed = useSidebarCollapsedSectionsStore((state) => state.collapsedPinned);
+  const toggleOtherProjectsCollapsed = useSidebarCollapsedSectionsStore(
+    (state) => state.toggleOtherProjectsCollapsed,
+  );
   const togglePinnedCollapsed = useSidebarCollapsedSectionsStore(
     (state) => state.togglePinnedCollapsed,
   );
@@ -2479,24 +2501,45 @@ function ProjectModeList({
     [renderPinnedChatRow],
   );
 
+  const renderProjects = (items: SidebarProjectEntry[], testID: string) => (
+    <DraggableList
+      testID={testID}
+      data={items}
+      keyExtractor={projectViewKeyExtractor}
+      renderItem={renderProject}
+      onDragEnd={handleProjectDragEnd}
+      extraData={activeWorkspaceSelectionKey(activeWorkspaceSelection)}
+      scrollEnabled={false}
+      useDragHandle
+      nestable={platformIsNative}
+      simultaneousGestureRef={parentGestureRef}
+      gestureHostPresented={dragGestureHostActive}
+      containerStyle={styles.projectListContainer}
+    />
+  );
+
   const projectBody =
     projects.length === 0 ? (
       <SidebarProjectEmptyState onAddProject={onAddProject} onImportSession={onImportSession} />
     ) : (
-      <DraggableList
-        testID="sidebar-project-list"
-        data={unpinnedProjects}
-        keyExtractor={projectViewKeyExtractor}
-        renderItem={renderProject}
-        onDragEnd={handleProjectDragEnd}
-        extraData={activeWorkspaceSelectionKey(activeWorkspaceSelection)}
-        scrollEnabled={false}
-        useDragHandle
-        nestable={platformIsNative}
-        simultaneousGestureRef={parentGestureRef}
-        gestureHostPresented={dragGestureHostActive}
-        containerStyle={styles.projectListContainer}
-      />
+      <>
+        {projectSections.primary.length > 0
+          ? renderProjects(projectSections.primary, "sidebar-project-list")
+          : null}
+        {projectSections.other.length > 0 ? (
+          <View testID="sidebar-other-projects-section">
+            <SidebarSectionHeader
+              title={t("sidebar.otherProjects.title")}
+              collapsed={projectSections.otherCollapsed}
+              onToggle={toggleOtherProjectsCollapsed}
+              testID="sidebar-other-projects-section-header"
+            />
+            {projectSections.otherCollapsed
+              ? null
+              : renderProjects(projectSections.other, "sidebar-other-projects-list")}
+          </View>
+        ) : null}
+      </>
     );
 
   const content = (

@@ -1302,6 +1302,11 @@ export const es: TranslationResources = {
       description: "Cambia o borra los filtros de la barra lateral para ver espacios de trabajo.",
       clear: "Borrar filtros",
     },
+    otherProjects: {
+      title: "Otros proyectos",
+      moveIn: "Mover a Otros proyectos",
+      moveOut: "Sacar de Otros proyectos",
+    },
     pinned: {
       title: "Anclados",
     },

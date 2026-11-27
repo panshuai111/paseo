@@ -1273,6 +1273,11 @@ export const ko: TranslationResources = {
       description: "워크스페이스를 보려면 사이드바 필터를 변경하거나 지우세요.",
       clear: "필터 지우기",
     },
+    otherProjects: {
+      title: "기타 프로젝트",
+      moveIn: "기타 프로젝트로 이동",
+      moveOut: "기타 프로젝트에서 빼기",
+    },
     pinned: {
       title: "고정됨",
     },

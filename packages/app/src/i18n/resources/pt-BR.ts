@@ -1292,6 +1292,11 @@ export const ptBR: TranslationResources = {
       description: "Altere ou limpe os filtros da barra lateral para ver espaços de trabalho.",
       clear: "Limpar filtros",
     },
+    otherProjects: {
+      title: "Outros projetos",
+      moveIn: "Mover para Outros projetos",
+      moveOut: "Retirar de Outros projetos",
+    },
     pinned: {
       title: "Fixados",
     },

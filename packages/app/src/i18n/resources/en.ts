@@ -1276,6 +1276,11 @@ export const en = {
       description: "Change or clear the sidebar filters to see workspaces.",
       clear: "Clear filters",
     },
+    otherProjects: {
+      title: "Other projects",
+      moveIn: "Move to Other projects",
+      moveOut: "Move out of Other projects",
+    },
     pinned: {
       title: "Pinned",
     },

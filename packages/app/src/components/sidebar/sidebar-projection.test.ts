@@ -84,6 +84,8 @@ function projectionInput(options?: {
     projectNamesByViewKey: new Map([["project", "Project"]]),
     groupMode: options?.groupMode ?? ("project" as const),
     pinnedCollapsed: options?.pinnedCollapsed ?? false,
+    otherProjectKeys: new Set<string>(),
+    otherProjectsCollapsed: true,
     collapsedProjectKeys: new Set<string>(),
     collapsedWorkspaceGroupKeys: new Set<string>(),
     t: i18n.t,
@@ -163,6 +165,45 @@ describe("buildSidebarProjection", () => {
     expect(projection.shortcutModel.shortcutTargets).toEqual([
       { serverId: "srv", workspaceId: "pinned" },
       { serverId: "srv", workspaceId: "unpinned" },
+    ]);
+  });
+
+  it("numbers Other projects after the main list only when their section and project are open", () => {
+    const input = { ...twoProjectInput("project"), otherProjectKeys: new Set(["project"]) };
+    const collapsed = buildSidebarProjection(input);
+
+    expect(collapsed.projectSections.primary.map((project) => project.viewKey)).toEqual([
+      "other-project",
+    ]);
+    expect(collapsed.projectSections.other.map((project) => project.viewKey)).toEqual(["project"]);
+    expect(collapsed.shortcutModel.shortcutTargets.map((target) => target.workspaceId)).toEqual([
+      "second",
+    ]);
+
+    const expandedInput = { ...input, otherProjectsCollapsed: false };
+    const expanded = buildSidebarProjection(expandedInput);
+    expect(expanded.shortcutModel.shortcutTargets.map((target) => target.workspaceId)).toEqual([
+      "second",
+      "first",
+    ]);
+
+    const projectCollapsed = buildSidebarProjection({
+      ...expandedInput,
+      collapsedProjectKeys: new Set(["project"]),
+    });
+    expect(projectCollapsed.shortcutModel.shortcutTargets).toEqual(
+      collapsed.shortcutModel.shortcutTargets,
+    );
+  });
+
+  it("keeps a workspace in Pinned when its project moves to the collapsed section", () => {
+    const projection = buildSidebarProjection({
+      ...projectionInput(),
+      otherProjectKeys: new Set(["project"]),
+    });
+
+    expect(projection.shortcutModel.shortcutTargets.map((target) => target.workspaceId)).toEqual([
+      "pinned",
     ]);
   });
 

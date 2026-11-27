@@ -4,6 +4,8 @@ import {
   mergePersistedCollapsedProjects,
   serializeCollapsedProjects,
   setProjectCollapsed,
+  toggleOtherProject,
+  toggleOtherProjectsCollapsed,
   togglePinnedCollapsed,
   toggleProjectCollapsed,
   toggleWorkspaceGroupCollapsed,
@@ -14,6 +16,8 @@ function emptyState(): CollapsedProjectsState {
     collapsedProjectKeys: new Set(),
     collapsedWorkspaceGroupKeys: new Set(),
     collapsedPinned: false,
+    otherProjectKeys: new Set(),
+    collapsedOtherProjects: true,
   };
 }
 
@@ -35,12 +39,16 @@ describe("sidebar collapsed projects transitions", () => {
       collapsedProjectKeys: new Set(["project-a", "project-b"]),
       collapsedWorkspaceGroupKeys: new Set(["running"]),
       collapsedPinned: true,
+      otherProjectKeys: new Set(["project-b"]),
+      collapsedOtherProjects: false,
     };
 
     expect(serializeCollapsedProjects(state)).toEqual({
       collapsedProjectKeys: ["project-a", "project-b"],
       collapsedWorkspaceGroupKeys: ["running"],
       collapsedPinned: true,
+      otherProjectKeys: ["project-b"],
+      collapsedOtherProjects: false,
     });
   });
 
@@ -50,6 +58,28 @@ describe("sidebar collapsed projects transitions", () => {
 
     const restored = mergePersistedCollapsedProjects({ collapsedPinned: true }, emptyState());
     expect(restored.collapsedPinned).toBe(true);
+  });
+
+  it("restores Other projects membership and both levels of collapse independently", () => {
+    const initial = mergePersistedCollapsedProjects(
+      { collapsedProjectKeys: ["project-a"] },
+      emptyState(),
+    );
+    expect(initial.collapsedOtherProjects).toBe(true);
+
+    const moved = toggleOtherProject(initial, "project-a");
+    const expanded = toggleOtherProjectsCollapsed(moved);
+    const restored = mergePersistedCollapsedProjects(
+      serializeCollapsedProjects(expanded),
+      emptyState(),
+    );
+    expect(restored.otherProjectKeys).toEqual(new Set(["project-a"]));
+    expect(restored.collapsedOtherProjects).toBe(false);
+    expect(restored.collapsedProjectKeys).toEqual(new Set(["project-a"]));
+
+    const movedOut = toggleOtherProject(restored, "project-a");
+    expect(movedOut.otherProjectKeys.size).toBe(0);
+    expect(movedOut.collapsedProjectKeys).toEqual(new Set(["project-a"]));
   });
 
   it("rejects the complete value when a persisted project key is invalid", () => {

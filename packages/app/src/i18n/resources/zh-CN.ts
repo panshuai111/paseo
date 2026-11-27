@@ -1258,6 +1258,11 @@ export const zhCN: TranslationResources = {
       description: "更改或清除侧边栏筛选以查看工作区。",
       clear: "清除筛选",
     },
+    otherProjects: {
+      title: "其他项目",
+      moveIn: "移到其他项目",
+      moveOut: "移出其他项目",
+    },
     pinned: {
       title: "已置顶",
     },

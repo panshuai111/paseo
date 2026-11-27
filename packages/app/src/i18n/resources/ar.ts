@@ -1266,6 +1266,11 @@ export const ar: TranslationResources = {
       description: "غيّر عوامل تصفية الشريط الجانبي أو امسحها لعرض مساحات العمل.",
       clear: "مسح عوامل التصفية",
     },
+    otherProjects: {
+      title: "مشاريع أخرى",
+      moveIn: "نقل إلى المشاريع الأخرى",
+      moveOut: "إخراج من المشاريع الأخرى",
+    },
     pinned: {
       title: "المثبتة",
     },

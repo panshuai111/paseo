@@ -21,8 +21,15 @@ import {
 } from "@/utils/sidebar-shortcuts";
 import { statusWorkspaceGroups, type SidebarWorkspaceGroup } from "./sidebar-labels";
 
+export interface SidebarProjectSections {
+  primary: SidebarProjectEntry[];
+  other: SidebarProjectEntry[];
+  otherCollapsed: boolean;
+}
+
 export interface SidebarProjection {
   pinnedGroups: PinnedSidebarGroups;
+  projectSections: SidebarProjectSections;
   workspaceGroups: SidebarWorkspaceGroup[];
   /**
    * The project icons this projection needs fetched, keyed by `projectViewKey` — one per project,
@@ -44,6 +51,8 @@ export interface SidebarProjectionInput {
   projectNamesByViewKey: Map<string, string>;
   groupMode: SidebarGroupMode;
   pinnedCollapsed: boolean;
+  otherProjectKeys: ReadonlySet<string>;
+  otherProjectsCollapsed: boolean;
   collapsedProjectKeys: ReadonlySet<string>;
   collapsedWorkspaceGroupKeys: ReadonlySet<string>;
   t: TFunction;
@@ -55,6 +64,17 @@ export function buildSidebarProjection(input: SidebarProjectionInput): SidebarPr
     keys: input.pinnedKeys,
     pinnedWorkspaceOrder: input.pinnedWorkspaceOrder,
   });
+  const projectSections: SidebarProjectSections = {
+    primary: [],
+    other: [],
+    otherCollapsed: input.otherProjectsCollapsed,
+  };
+  for (const project of pinnedGroups.unpinnedProjects) {
+    const section = input.otherProjectKeys.has(project.viewKey)
+      ? projectSections.other
+      : projectSections.primary;
+    section.push(project);
+  }
   const pinnedWorkspaceKeys = new Set(input.pinnedKeys.pinnedWorkspaceKeys);
   const unpinnedWorkspaces = Array.from(input.workspaceEntriesByKey.values()).filter(
     (workspace) => !pinnedWorkspaceKeys.has(workspace.workspaceKey),
@@ -69,8 +89,11 @@ export function buildSidebarProjection(input: SidebarProjectionInput): SidebarPr
     sections.push({ workspaces: pinnedGroups.pinnedChats });
   }
   if (input.groupMode === "project") {
+    const visibleProjects = projectSections.otherCollapsed
+      ? projectSections.primary
+      : [...projectSections.primary, ...projectSections.other];
     sections.push(
-      ...pinnedGroups.unpinnedProjects.map((project) => ({
+      ...visibleProjects.map((project) => ({
         workspaces: project.workspaces,
         collapsed: input.collapsedProjectKeys.has(project.viewKey),
       })),
@@ -86,6 +109,7 @@ export function buildSidebarProjection(input: SidebarProjectionInput): SidebarPr
 
   return {
     pinnedGroups,
+    projectSections,
     workspaceGroups,
     projectIconTargets: resolveSidebarProjectIconTargets(input.projects),
     shortcutModel: buildSidebarShortcutSections({ sections }),

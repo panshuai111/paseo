@@ -33,7 +33,7 @@ async function archiveWorkspaceFromSidebar(page: Page, workspaceId: string): Pro
   await archiveItem.click();
 }
 
-async function removeProjectFromSidebar(page: Page, projectViewKey: string): Promise<void> {
+async function openProjectActions(page: Page, projectViewKey: string): Promise<void> {
   const projectRow = page.getByTestId(`sidebar-project-row-${projectViewKey}`);
   await expect(projectRow).toBeVisible({ timeout: 30_000 });
   await projectRow.hover();
@@ -41,7 +41,10 @@ async function removeProjectFromSidebar(page: Page, projectViewKey: string): Pro
   const kebab = page.getByTestId(`sidebar-project-kebab-${projectViewKey}`);
   await expect(kebab).toBeVisible({ timeout: 10_000 });
   await kebab.click();
+}
 
+async function removeProjectFromSidebar(page: Page, projectViewKey: string): Promise<void> {
+  await openProjectActions(page, projectViewKey);
   // Removing a project raises a browser confirm; accept it so the
   // user-confirmed removal proceeds deterministically.
   page.once("dialog", (dialog) => void dialog.accept());
@@ -192,6 +195,51 @@ test.describe("Project with no workspaces persists", () => {
       await workspace.cleanup();
     }
   });
+});
+
+test("moves a project into and out of the collapsible Other projects section", async ({ page }) => {
+  const workspace = await seedWorkspace({ repoPrefix: "sidebar-other-projects-" });
+
+  try {
+    const projectViewKey = projectEquivalenceViewKey(workspace.projectKey);
+    const projectRow = page.getByTestId(`sidebar-project-row-${projectViewKey}`);
+    const workspaceRow = page.getByTestId(workspaceRowTestId(workspace.workspaceId));
+    const otherSection = page.getByTestId("sidebar-other-projects-section");
+    const sectionHeader = page.getByRole("button", { name: "Other projects", exact: true });
+    const moveItem = page.getByTestId(`sidebar-project-menu-toggle-other-${projectViewKey}`);
+
+    await gotoAppShell(page);
+    await waitForSidebarHydration(page);
+    await expect(workspaceRow).toBeVisible();
+    await projectRow.click();
+    await expect(workspaceRow).toHaveCount(0);
+
+    await openProjectActions(page, projectViewKey);
+    await expect(moveItem).toHaveText("Move to Other projects");
+    await moveItem.click();
+    await expect(sectionHeader).toHaveAttribute("aria-expanded", "false");
+    await expect(projectRow).toHaveCount(0);
+
+    await sectionHeader.click();
+    await expect(sectionHeader).toHaveAttribute("aria-expanded", "true");
+    await expect(otherSection.getByTestId(`sidebar-project-row-${projectViewKey}`)).toBeVisible();
+    await expect(workspaceRow).toHaveCount(0);
+
+    await page.reload();
+    await expect(sectionHeader).toHaveAttribute("aria-expanded", "true", { timeout: 30_000 });
+    await expect(otherSection.getByTestId(`sidebar-project-row-${projectViewKey}`)).toBeVisible();
+    await expect(workspaceRow).toHaveCount(0);
+
+    await openProjectActions(page, projectViewKey);
+    await expect(moveItem).toHaveText("Move out of Other projects");
+    await moveItem.click();
+    await expect(otherSection).toHaveCount(0);
+    await expect(projectRow).toBeVisible();
+    await projectRow.click();
+    await expect(workspaceRow).toBeVisible();
+  } finally {
+    await workspace.cleanup();
+  }
 });
 
 test.describe("Project remove", () => {

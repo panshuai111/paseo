@@ -1296,6 +1296,11 @@ export const fr: TranslationResources = {
         "Modifiez ou effacez les filtres de la barre latérale pour afficher les espaces de travail.",
       clear: "Effacer les filtres",
     },
+    otherProjects: {
+      title: "Autres projets",
+      moveIn: "Déplacer vers Autres projets",
+      moveOut: "Retirer de Autres projets",
+    },
     pinned: {
       title: "Épinglés",
     },
